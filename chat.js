@@ -7,24 +7,49 @@ let isInitiator = false;
 const sendSound = document.getElementById('sendSound');
 const receiveSound = document.getElementById('receiveSound');
 
+function storePeerId(peerId) {
+    localStorage.setItem('storedPeerId', peerId);
+}
+
+function getStoredPeerId() {
+    return localStorage.getItem('storedPeerId');
+}
+
 peer.on('open', (id) => {
-    myPeerId = id;
-    document.getElementById('myId').textContent = id;
     const urlParams = new URLSearchParams(window.location.search);
     chatId = urlParams.get('chatId');
-    const peerId = urlParams.get('peerId');
+    let peerId = urlParams.get('peerId');
+    
+    const storedPeerId = getStoredPeerId();
     
     if (chatId && peerId) {
         // Reconnecting to existing chat
+        myPeerId = storedPeerId || id;
         isInitiator = myPeerId === peerId;
-        connectToPeer(peerId);
+        if (isInitiator && storedPeerId) {
+            // Use the stored peer ID for the initiator
+            peer.destroy();
+            peer = new Peer(storedPeerId);
+            peer.on('open', () => {
+                document.getElementById('myId').textContent = storedPeerId;
+                waitForConnection();
+            });
+        } else {
+            document.getElementById('myId').textContent = id;
+            connectToPeer(peerId);
+        }
     } else if (peerId) {
         // New connection with peer ID (receiver)
+        myPeerId = id;
         isInitiator = false;
+        document.getElementById('myId').textContent = id;
         connectToPeer(peerId);
     } else {
         // New chat, waiting for connection (initiator)
+        myPeerId = id;
         isInitiator = true;
+        storePeerId(id);
+        document.getElementById('myId').textContent = id;
         updateUrlWithChatIdAndPeerId(null, myPeerId);
         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
         document.getElementById('copyLinkBtn').style.display = 'inline-block';
@@ -48,6 +73,9 @@ peer.on('connection', (connection) => {
 });
 
 function connectToPeer(peerId) {
+    if (conn) {
+        conn.close();
+    }
     conn = peer.connect(peerId);
     setupConnection();
     showChatInterface();
@@ -58,7 +86,7 @@ function setupConnection() {
         console.log('Connected to peer');
         displayMessage('Connected to peer', 'system');
         
-        if (chatId && isInitiator) {
+        if (isInitiator) {
             // Send chatId to peer for reconnection purposes
             conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
         }
@@ -74,17 +102,6 @@ function setupConnection() {
     });
 
     setupConnectionLossDetection();
-}
-
-function setupConnectionLossDetection() {
-    conn.on('close', () => {
-        displayMessage('Connection lost. Trying to reconnect...', 'system');
-        setTimeout(() => {
-            if (conn.disconnected) {
-                connectToPeer(conn.peer);
-            }
-        }, 3000);
-    });
 }
 
 function handleChatIdMessage(receivedChatId, initiatorId) {
@@ -152,8 +169,8 @@ function generateChatId() {
 
 function updateUrlWithChatIdAndPeerId(chatId, peerId) {
     const url = new URL(window.location.href);
-    if (chatId) url.searchParams.set('chatId', chatId);
-    if (peerId) url.searchParams.set('peerId', peerId);
+    url.searchParams.set('chatId', chatId);
+    url.searchParams.set('peerId', peerId);
     window.history.replaceState({}, '', url);
 }
 
@@ -163,3 +180,12 @@ document.getElementById('messageInput').addEventListener('keypress', function(e)
         sendMessage();
     }
 });
+
+function waitForConnection() {
+    peer.on('connection', (connection) => {
+        conn = connection;
+        setupConnection();
+        showChatInterface();
+        displayMessage('Your friend has rejoined the chat!', 'system');
+    });
+}
