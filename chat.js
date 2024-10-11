@@ -1,11 +1,13 @@
 const peer = new Peer();
 let conn;
 let chatId;
+let myPeerId;
 
 const sendSound = document.getElementById('sendSound');
 const receiveSound = document.getElementById('receiveSound');
 
 peer.on('open', (id) => {
+    myPeerId = id;
     document.getElementById('myId').textContent = id;
     const urlParams = new URLSearchParams(window.location.search);
     chatId = urlParams.get('chatId');
@@ -34,20 +36,22 @@ peer.on('connection', (connection) => {
         // Generate new chat ID for first-time connection
         chatId = generateChatId();
         updateUrlWithChatId(chatId);
-        conn.send({ type: 'chatId', chatId: chatId });
+        conn.send({ type: 'chatId', chatId: chatId, peerId: myPeerId });
     }
     
     displayMessage('Your friend has joined the chat!', 'system');
 });
 
 function connectToChat(chatId) {
-    // Attempt to reconnect using stored peer ID
-    const storedPeerId = localStorage.getItem(`peerId_${chatId}`);
-    if (storedPeerId) {
-        connectToPeer(storedPeerId);
+    // Attempt to reconnect using stored peer IDs
+    const storedPeerIds = JSON.parse(localStorage.getItem(`peerIds_${chatId}`) || '[]');
+    const otherPeerId = storedPeerIds.find(id => id !== myPeerId);
+    
+    if (otherPeerId) {
+        connectToPeer(otherPeerId);
     } else {
-        displayMessage('Unable to reconnect to chat. Please share a new link.', 'system');
-        showShareInterface();
+        displayMessage('Waiting for your friend to reconnect...', 'system');
+        showChatInterface();
     }
 }
 
@@ -64,13 +68,13 @@ function setupConnection() {
         
         if (chatId) {
             // Send chatId to peer for reconnection purposes
-            conn.send({ type: 'chatId', chatId: chatId });
+            conn.send({ type: 'chatId', chatId: chatId, peerId: myPeerId });
         }
     });
     
     conn.on('data', (data) => {
         if (typeof data === 'object' && data.type === 'chatId') {
-            handleChatIdMessage(data.chatId);
+            handleChatIdMessage(data.chatId, data.peerId);
         } else {
             displayMessage(data, 'friend');
             playSound(receiveSound);
@@ -78,12 +82,20 @@ function setupConnection() {
     });
 }
 
-function handleChatIdMessage(receivedChatId) {
+function handleChatIdMessage(receivedChatId, receivedPeerId) {
     if (!chatId) {
         chatId = receivedChatId;
         updateUrlWithChatId(chatId);
     }
-    localStorage.setItem(`peerId_${chatId}`, conn.peer);
+    
+    let peerIds = JSON.parse(localStorage.getItem(`peerIds_${chatId}`) || '[]');
+    if (!peerIds.includes(myPeerId)) {
+        peerIds.push(myPeerId);
+    }
+    if (!peerIds.includes(receivedPeerId)) {
+        peerIds.push(receivedPeerId);
+    }
+    localStorage.setItem(`peerIds_${chatId}`, JSON.stringify(peerIds));
 }
 
 function sendMessage() {
@@ -138,11 +150,6 @@ function showChatInterface() {
     document.getElementById('shareInterface').style.display = 'none';
 }
 
-function showShareInterface() {
-    document.getElementById('chatInterface').style.display = 'none';
-    document.getElementById('shareInterface').style.display = 'block';
-}
-
 function generateChatId() {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
@@ -150,6 +157,7 @@ function generateChatId() {
 function updateUrlWithChatId(chatId) {
     const url = new URL(window.location.href);
     url.searchParams.set('chatId', chatId);
+    url.searchParams.delete('peerId');  // Remove peerId from URL after connection
     window.history.replaceState({}, '', url);
 }
 
