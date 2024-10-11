@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple P2P Chat</title>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        #chatArea { height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
+        #messageInput { width: 70%; padding: 5px; }
+        button { padding: 5px 10px; }
+        #myId { font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Simple P2P Chat</h1>
+    <div id="chatArea"></div>
+    <input type="text" id="messageInput" placeholder="Type your message...">
+    <button onclick="sendMessage()">Send</button>
+    <p>Your ID: <span id="myId"></span></p>
+    <p>To chat, send this page's URL with your ID appended as '?id=YourID' to your friend.</p>
+
+    <script src="chat.js"></script>
+</body>
+</html>
