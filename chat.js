@@ -4,18 +4,40 @@ let conn;
 const sendSound = document.getElementById('sendSound');
 const receiveSound = document.getElementById('receiveSound');
 
+function generateChatId() {
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+}
+
+function getChatId() {
+    let chatId = localStorage.getItem('chatId');
+    if (!chatId) {
+        chatId = generateChatId();
+        localStorage.setItem('chatId', chatId);
+    }
+    return chatId;
+}
+
 peer.on('open', (id) => {
     document.getElementById('myId').textContent = id;
     const urlParams = new URLSearchParams(window.location.search);
-    const peerId = urlParams.get('id');
+    let peerId = urlParams.get('id');
     
-    if (peerId) {
-        connectToPeer(peerId);
+    if (!peerId) {
+        const chatId = getChatId();
+        peerId = `${id}-${chatId}`;
+        const newUrl = new URL(window.location.href);
+        newUrl.searchParams.set('id', peerId);
+        window.history.pushState({}, '', newUrl);
+    }
+
+    const [targetPeerId, chatId] = peerId.split('-');
+    if (targetPeerId !== id) {
+        connectToPeer(targetPeerId);
         showChatInterface();
     } else {
         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
         document.getElementById('copyLinkBtn').style.display = 'inline-block';
-        setupCopyLinkButton(id);
+        setupCopyLinkButton(peerId);
     }
 });
 
@@ -72,13 +94,13 @@ function playSound(audioElement) {
     audioElement.play().catch(error => console.error('Error playing sound:', error));
 }
 
-function setupCopyLinkButton(id) {
+function setupCopyLinkButton(peerId) {
     const copyLinkBtn = document.getElementById('copyLinkBtn');
     const copyStatus = document.getElementById('copyStatus');
 
     copyLinkBtn.addEventListener('click', () => {
         const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('id', id);
+        currentUrl.searchParams.set('id', peerId);
         const fullUrl = currentUrl.toString();
 
         navigator.clipboard.writeText(fullUrl).then(() => {
