@@ -16,7 +16,6 @@ peer.on('open', (id) => {
     
     if (chatId && peerId) {
         // Reconnecting to existing chat
-        isInitiator = false;
         connectToPeer(peerId);
     } else if (peerId) {
         // New connection with peer ID (receiver)
@@ -25,13 +24,12 @@ peer.on('open', (id) => {
     } else {
         // New chat, waiting for connection (initiator)
         isInitiator = true;
-        chatId = generateChatId();
         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
         document.getElementById('copyLinkBtn').style.display = 'inline-block';
         setupCopyLinkButton(id);
     }
     
-    updateUrlWithChatIdAndPeerId(chatId, id);
+    // Remove the setInterval call from here
 });
 
 // Add these new event listeners for the peer object
@@ -63,13 +61,15 @@ function setupConnection() {
         console.log('Connected to peer');
         displayMessage('Connected to peer', 'system');
         
-        // Both initiator and receiver send their information
-        conn.send({ type: 'peerInfo', chatId: chatId, peerId: myPeerId });
+        if (chatId && isInitiator) {
+            // Send chatId to peer for reconnection purposes
+            conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+        }
     });
     
     conn.on('data', (data) => {
-        if (typeof data === 'object' && data.type === 'peerInfo') {
-            handlePeerInfoMessage(data.chatId, data.peerId);
+        if (typeof data === 'object' && data.type === 'chatId') {
+            handleChatIdMessage(data.chatId, data.initiatorId);
         } else {
             displayMessage(data, 'friend');
             playSound(receiveSound);
@@ -79,15 +79,16 @@ function setupConnection() {
     conn.on('close', () => {
         console.log('Connection to peer closed');
         displayMessage('Your friend has disconnected. Waiting for them to reconnect...', 'system');
+        // Attempt to reconnect
         attemptReconnection();
     });
 }
 
-function handlePeerInfoMessage(receivedChatId, receivedPeerId) {
+function handleChatIdMessage(receivedChatId, initiatorId) {
     if (!chatId) {
         chatId = receivedChatId;
+        updateUrlWithChatIdAndPeerId(chatId, initiatorId);
     }
-    updateUrlWithChatIdAndPeerId(chatId, receivedPeerId);
 }
 
 function sendMessage() {
@@ -162,14 +163,10 @@ document.getElementById('messageInput').addEventListener('keypress', function(e)
 
 // Add this new function
 function attemptReconnection() {
-    if (chatId) {
+    if (chatId && conn.peer) {
         console.log('Attempting to reconnect...');
         setTimeout(() => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const savedPeerId = urlParams.get('peerId');
-            if (savedPeerId && savedPeerId !== myPeerId) {
-                connectToPeer(savedPeerId);
-            }
+            connectToPeer(conn.peer);
         }, 5000); // Wait 5 seconds before attempting to reconnect
     }
 }
