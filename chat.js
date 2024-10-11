@@ -28,6 +28,9 @@ peer.on('open', (id) => {
         document.getElementById('copyLinkBtn').style.display = 'inline-block';
         setupCopyLinkButton(id);
     }
+    
+    // Start periodic connection status checks
+    setInterval(checkConnectionStatus, 5000); // Check every 5 seconds
 });
 
 peer.on('connection', (connection) => {
@@ -69,6 +72,13 @@ function setupConnection() {
             displayMessage(data, 'friend');
             playSound(receiveSound);
         }
+    });
+
+    // Add this new event listener
+    conn.on('close', () => {
+        console.log('Connection closed');
+        displayMessage('Your friend has disconnected', 'system');
+        // You can add additional logic here, like disabling the chat interface
     });
 }
 
@@ -149,3 +159,14 @@ document.getElementById('messageInput').addEventListener('keypress', function(e)
     }
 });
 
+// Add this new function
+function checkConnectionStatus() {
+    if (conn && !conn.open) {
+        console.log('Connection lost');
+        displayMessage('Connection lost. Attempting to reconnect...', 'system');
+        // Attempt to reconnect
+        if (chatId) {
+            connectToPeer(conn.peer);
+        }
+    }
+}
