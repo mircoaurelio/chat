@@ -9,7 +9,7 @@
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         #chatArea { height: 300px; overflow-y: scroll; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; }
         #messageInput { width: 70%; padding: 5px; }
-        button { padding: 5px 10px; }
+        button { padding: 5px 10px; margin-right: 5px; }
         #myId { font-weight: bold; }
     </style>
 </head>
@@ -19,7 +19,8 @@
     <input type="text" id="messageInput" placeholder="Type your message...">
     <button onclick="sendMessage()">Send</button>
     <p>Your ID: <span id="myId"></span></p>
-    <p>To chat, send this page's URL with your ID appended as '?id=YourID' to your friend.</p>
+    <button id="copyLinkBtn">Copy Chat Link</button>
+    <p id="copyStatus"></p>
 
     <script src="chat.js"></script>
 </body>
