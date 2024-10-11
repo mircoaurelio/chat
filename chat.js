@@ -8,14 +8,17 @@ const receiveSound = document.getElementById('receiveSound');
 peer.on('open', (id) => {
     document.getElementById('myId').textContent = id;
     const urlParams = new URLSearchParams(window.location.search);
-    const peerId = urlParams.get('id');
     chatId = urlParams.get('chatId');
+    const peerId = urlParams.get('peerId');
     
-    if (peerId) {
+    if (chatId) {
+        // Attempt to reconnect to existing chat
+        connectToChat(chatId);
+    } else if (peerId) {
+        // New connection with peer ID
         connectToPeer(peerId);
-    } else if (chatId) {
-        attemptReconnect(chatId);
     } else {
+        // New chat, waiting for connection
         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
         document.getElementById('copyLinkBtn').style.display = 'inline-block';
         setupCopyLinkButton(id);
@@ -25,37 +28,62 @@ peer.on('open', (id) => {
 peer.on('connection', (connection) => {
     conn = connection;
     setupConnection();
+    showChatInterface();
+    
     if (!chatId) {
+        // Generate new chat ID for first-time connection
         chatId = generateChatId();
         updateUrlWithChatId(chatId);
+        conn.send({ type: 'chatId', chatId: chatId });
     }
-    showChatInterface();
+    
     displayMessage('Your friend has joined the chat!', 'system');
 });
+
+function connectToChat(chatId) {
+    // Attempt to reconnect using stored peer ID
+    const storedPeerId = localStorage.getItem(`peerId_${chatId}`);
+    if (storedPeerId) {
+        connectToPeer(storedPeerId);
+    } else {
+        displayMessage('Unable to reconnect to chat. Please share a new link.', 'system');
+        showShareInterface();
+    }
+}
 
 function connectToPeer(peerId) {
     conn = peer.connect(peerId);
     setupConnection();
+    showChatInterface();
 }
 
 function setupConnection() {
     conn.on('open', () => {
         console.log('Connected to peer');
         displayMessage('Connected to peer', 'system');
-        conn.send({ type: 'USER_JOINED', chatId: chatId });
+        
+        if (chatId) {
+            // Send chatId to peer for reconnection purposes
+            conn.send({ type: 'chatId', chatId: chatId });
+        }
     });
+    
     conn.on('data', (data) => {
-        if (typeof data === 'object' && data.type === 'USER_JOINED') {
-            if (!chatId) {
-                chatId = data.chatId;
-                updateUrlWithChatId(chatId);
-            }
-            displayMessage('Your friend has joined the chat!', 'system');
+        if (typeof data === 'object' && data.type === 'chatId') {
+            handleChatIdMessage(data.chatId);
         } else {
             displayMessage(data, 'friend');
             playSound(receiveSound);
         }
     });
+}
+
+function handleChatIdMessage(receivedChatId) {
+    if (!chatId) {
+        chatId = receivedChatId;
+        updateUrlWithChatId(chatId);
+    }
+    localStorage.setItem(`peerId_${chatId}`, conn.peer);
 }
 
 function sendMessage() {
@@ -89,7 +117,7 @@ function setupCopyLinkButton(id) {
 
     copyLinkBtn.addEventListener('click', () => {
         const currentUrl = new URL(window.location.href);
-        currentUrl.searchParams.set('id', id);
+        currentUrl.searchParams.set('peerId', id);
         const fullUrl = currentUrl.toString();
 
         navigator.clipboard.writeText(fullUrl).then(() => {
@@ -110,6 +138,11 @@ function showChatInterface() {
     document.getElementById('shareInterface').style.display = 'none';
 }
 
+function showShareInterface() {
+    document.getElementById('chatInterface').style.display = 'none';
+    document.getElementById('shareInterface').style.display = 'block';
+}
+
 function generateChatId() {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
@@ -118,14 +151,6 @@ function updateUrlWithChatId(chatId) {
     const url = new URL(window.location.href);
     url.searchParams.set('chatId', chatId);
     window.history.replaceState({}, '', url);
-}
-
-function attemptReconnect(chatId) {
-    // Here you would implement logic to reconnect to a specific chat
-    // This might involve connecting to a known peer or waiting for a connection
-    console.log('Attempting to reconnect to chat:', chatId);
-    showChatInterface();
-    displayMessage('Waiting for your friend to rejoin...', 'system');
 }
 
 // Allow sending messages with Enter key
