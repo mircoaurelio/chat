@@ -2,6 +2,7 @@ const peer = new Peer();
 let conn;
 let chatId;
 let myPeerId;
+let isInitiator = false;
 
 const sendSound = document.getElementById('sendSound');
 const receiveSound = document.getElementById('receiveSound');
@@ -13,25 +14,16 @@ peer.on('open', (id) => {
     chatId = urlParams.get('chatId');
     const peerId = urlParams.get('peerId');
     
-    const storedRole = localStorage.getItem('userRole');
-    
-    if (chatId) {
-        // Attempt to reconnect to existing chat
-        connectToChat(chatId);
+    if (chatId && peerId) {
+        // Reconnecting to existing chat
+        connectToPeer(peerId);
     } else if (peerId) {
         // New connection with peer ID (receiver)
-        setUserRole(false);
+        isInitiator = false;
         connectToPeer(peerId);
-    } else if (storedRole === 'initiator') {
-        // Initiator reconnecting
-        const storedChatId = localStorage.getItem('chatId');
-        if (storedChatId) {
-            chatId = storedChatId;
-            connectToChat(chatId);
-        }
     } else {
         // New chat, waiting for connection (initiator)
-        setUserRole(true);
+        isInitiator = true;
         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
         document.getElementById('copyLinkBtn').style.display = 'inline-block';
         setupCopyLinkButton(id);
@@ -43,30 +35,15 @@ peer.on('connection', (connection) => {
     setupConnection();
     showChatInterface();
     
-    if (!chatId) {
+    if (isInitiator && !chatId) {
         // Generate new chat ID for first-time connection
         chatId = generateChatId();
-        updateUrlWithChatId(chatId);
-        conn.send({ type: 'chatId', chatId: chatId, peerId: myPeerId });
+        updateUrlWithChatIdAndPeerId(chatId, myPeerId);
+        conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
     }
     
     displayMessage('Your friend has joined the chat!', 'system');
 });
-
-function connectToChat(chatId) {
-    const storedPeerIds = JSON.parse(localStorage.getItem(`peerIds_${chatId}`) || '[]');
-    const otherPeerId = storedPeerIds.find(id => id !== myPeerId);
-    
-    if (otherPeerId) {
-        connectToPeer(otherPeerId);
-    } else {
-        displayMessage('Waiting for your friend to reconnect...', 'system');
-        showChatInterface();
-    }
-    
-    // Update URL with chatId for both initiator and receiver
-    updateUrlWithChatId(chatId);
-}
 
 function connectToPeer(peerId) {
     conn = peer.connect(peerId);
@@ -79,15 +56,15 @@ function setupConnection() {
         console.log('Connected to peer');
         displayMessage('Connected to peer', 'system');
         
-        if (chatId) {
+        if (chatId && isInitiator) {
             // Send chatId to peer for reconnection purposes
-            conn.send({ type: 'chatId', chatId: chatId, peerId: myPeerId });
+            conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
         }
     });
     
     conn.on('data', (data) => {
         if (typeof data === 'object' && data.type === 'chatId') {
-            handleChatIdMessage(data.chatId, data.peerId);
+            handleChatIdMessage(data.chatId, data.initiatorId);
         } else {
             displayMessage(data, 'friend');
             playSound(receiveSound);
@@ -95,22 +72,11 @@ function setupConnection() {
     });
 }
 
-function handleChatIdMessage(receivedChatId, receivedPeerId) {
+function handleChatIdMessage(receivedChatId, initiatorId) {
     if (!chatId) {
         chatId = receivedChatId;
-        updateUrlWithChatId(chatId);
+        updateUrlWithChatIdAndPeerId(chatId, initiatorId);
     }
-    
-    localStorage.setItem('chatId', chatId);
-    
-    let peerIds = JSON.parse(localStorage.getItem(`peerIds_${chatId}`) || '[]');
-    if (!peerIds.includes(myPeerId)) {
-        peerIds.push(myPeerId);
-    }
-    if (!peerIds.includes(receivedPeerId)) {
-        peerIds.push(receivedPeerId);
-    }
-    localStorage.setItem(`peerIds_${chatId}`, JSON.stringify(peerIds));
 }
 
 function sendMessage() {
@@ -145,9 +111,6 @@ function setupCopyLinkButton(id) {
     copyLinkBtn.addEventListener('click', () => {
         const currentUrl = new URL(window.location.href);
         currentUrl.searchParams.set('peerId', id);
-        if (chatId) {
-            currentUrl.searchParams.set('chatId', chatId);
-        }
         const fullUrl = currentUrl.toString();
 
         navigator.clipboard.writeText(fullUrl).then(() => {
@@ -172,10 +135,10 @@ function generateChatId() {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
-function updateUrlWithChatId(chatId) {
+function updateUrlWithChatIdAndPeerId(chatId, peerId) {
     const url = new URL(window.location.href);
     url.searchParams.set('chatId', chatId);
-    url.searchParams.delete('peerId');  // Remove peerId from URL after connection
+    url.searchParams.set('peerId', peerId);
     window.history.replaceState({}, '', url);
 }
 
@@ -186,6 +149,3 @@ document.getElementById('messageInput').addEventListener('keypress', function(e)
     }
 });
 
-function setUserRole(isInitiator) {
-    localStorage.setItem('userRole', isInitiator ? 'initiator' : 'receiver');
-}
