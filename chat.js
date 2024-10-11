@@ -29,25 +29,23 @@ peer.on('open', (id) => {
         setupCopyLinkButton(id);
     }
     
-    // Remove the setInterval call from here
+    // Start periodic connection status checks
+    setInterval(checkConnectionStatus, 5000); // Check every 5 seconds
 });
 
-// Add these new event listeners for the peer object
-peer.on('disconnected', () => {
-    console.log('Disconnected from server');
-    displayMessage('Disconnected from server. Attempting to reconnect...', 'system');
-    // Attempt to reconnect to the signaling server
-    let reconnectInterval = setInterval(() => {
-        if (!peer.destroyed) {
-            peer.reconnect();
-        }
-    }, 5000);
-});
-
-peer.on('close', () => {
-    console.log('Connection destroyed');
-    displayMessage('Connection closed. Please refresh the page to start a new chat.', 'system');
-    clearInterval(reconnectInterval);
+peer.on('connection', (connection) => {
+    conn = connection;
+    setupConnection();
+    showChatInterface();
+    
+    if (isInitiator && !chatId) {
+        // Generate new chat ID for first-time connection
+        chatId = generateChatId();
+        updateUrlWithChatIdAndPeerId(chatId, myPeerId);
+        conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+    }
+    
+    displayMessage('Your friend has joined the chat!', 'system');
 });
 
 function connectToPeer(peerId) {
@@ -76,11 +74,11 @@ function setupConnection() {
         }
     });
 
+    // Add this new event listener
     conn.on('close', () => {
-        console.log('Connection to peer closed');
-        displayMessage('Your friend has disconnected. Waiting for them to reconnect...', 'system');
-        // Attempt to reconnect
-        attemptReconnection();
+        console.log('Connection closed');
+        displayMessage('Your friend has disconnected', 'system');
+        // You can add additional logic here, like disabling the chat interface
     });
 }
 
@@ -162,11 +160,13 @@ document.getElementById('messageInput').addEventListener('keypress', function(e)
 });
 
 // Add this new function
-function attemptReconnection() {
-    if (chatId && conn.peer) {
-        console.log('Attempting to reconnect...');
-        setTimeout(() => {
+function checkConnectionStatus() {
+    if (conn && !conn.open) {
+        console.log('Connection lost');
+        displayMessage('Connection lost. Attempting to reconnect...', 'system');
+        // Attempt to reconnect
+        if (chatId) {
             connectToPeer(conn.peer);
-        }, 5000); // Wait 5 seconds before attempting to reconnect
+        }
     }
 }
