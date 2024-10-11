@@ -2,7 +2,6 @@ const peer = new Peer();
 let conn;
 let chatId;
 let myPeerId;
-let isInitiator = false;
 
 const sendSound = document.getElementById('sendSound');
 const receiveSound = document.getElementById('receiveSound');
@@ -12,27 +11,19 @@ peer.on('open', (id) => {
     document.getElementById('myId').textContent = id;
     const urlParams = new URLSearchParams(window.location.search);
     chatId = urlParams.get('chatId');
-    const initiatorId = urlParams.get('initiatorId');
-    const receiverId = urlParams.get('receiverId');
+    const peerId = urlParams.get('peerId');
     
-    if (chatId && initiatorId && receiverId) {
-        // Reconnecting to existing chat
-        if (myPeerId === initiatorId) {
-            connectToPeer(receiverId);
-        } else if (myPeerId === receiverId) {
-            connectToPeer(initiatorId);
-        } else {
-            // If neither ID matches, show the share interface
-            showShareInterface();
-        }
-    } else if (initiatorId && !receiverId) {
-        // New connection for receiver
-        isInitiator = false;
-        connectToPeer(initiatorId);
+    if (chatId) {
+        // Attempt to reconnect to existing chat
+        connectToChat(chatId);
+    } else if (peerId) {
+        // New connection with peer ID
+        connectToPeer(peerId);
     } else {
-        // New chat, waiting for connection (initiator)
-        isInitiator = true;
-        showShareInterface();
+        // New chat, waiting for connection
+        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+        document.getElementById('copyLinkBtn').style.display = 'inline-block';
+        setupCopyLinkButton(id);
     }
 });
 
@@ -41,15 +32,28 @@ peer.on('connection', (connection) => {
     setupConnection();
     showChatInterface();
     
-    if (isInitiator && !chatId) {
+    if (!chatId) {
         // Generate new chat ID for first-time connection
         chatId = generateChatId();
-        updateUrlWithChatInfo(chatId, myPeerId, conn.peer);
-        conn.send({ type: 'chatInfo', chatId: chatId, initiatorId: myPeerId, receiverId: conn.peer });
+        updateUrlWithChatId(chatId);
+        conn.send({ type: 'chatId', chatId: chatId, peerId: myPeerId });
     }
     
     displayMessage('Your friend has joined the chat!', 'system');
 });
+
+function connectToChat(chatId) {
+    // Attempt to reconnect using stored peer IDs
+    const storedPeerIds = JSON.parse(localStorage.getItem(`peerIds_${chatId}`) || '[]');
+    const otherPeerId = storedPeerIds.find(id => id !== myPeerId);
+    
+    if (otherPeerId) {
+        connectToPeer(otherPeerId);
+    } else {
+        displayMessage('Waiting for your friend to reconnect...', 'system');
+        showChatInterface();
+    }
+}
 
 function connectToPeer(peerId) {
     conn = peer.connect(peerId);
@@ -62,15 +66,15 @@ function setupConnection() {
         console.log('Connected to peer');
         displayMessage('Connected to peer', 'system');
         
-        if (chatId && isInitiator) {
-            // Send chat info to peer for reconnection purposes
-            conn.send({ type: 'chatInfo', chatId: chatId, initiatorId: myPeerId, receiverId: conn.peer });
+        if (chatId) {
+            // Send chatId to peer for reconnection purposes
+            conn.send({ type: 'chatId', chatId: chatId, peerId: myPeerId });
         }
     });
     
     conn.on('data', (data) => {
-        if (typeof data === 'object' && data.type === 'chatInfo') {
-            handleChatInfoMessage(data);
+        if (typeof data === 'object' && data.type === 'chatId') {
+            handleChatIdMessage(data.chatId, data.peerId);
         } else {
             displayMessage(data, 'friend');
             playSound(receiveSound);
@@ -78,11 +82,20 @@ function setupConnection() {
     });
 }
 
-function handleChatInfoMessage(data) {
+function handleChatIdMessage(receivedChatId, receivedPeerId) {
     if (!chatId) {
-        chatId = data.chatId;
-        updateUrlWithChatInfo(data.chatId, data.initiatorId, data.receiverId);
+        chatId = receivedChatId;
+        updateUrlWithChatId(chatId);
     }
+    
+    let peerIds = JSON.parse(localStorage.getItem(`peerIds_${chatId}`) || '[]');
+    if (!peerIds.includes(myPeerId)) {
+        peerIds.push(myPeerId);
+    }
+    if (!peerIds.includes(receivedPeerId)) {
+        peerIds.push(receivedPeerId);
+    }
+    localStorage.setItem(`peerIds_${chatId}`, JSON.stringify(peerIds));
 }
 
 function sendMessage() {
@@ -141,11 +154,10 @@ function generateChatId() {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
 
-function updateUrlWithChatInfo(chatId, initiatorId, receiverId) {
+function updateUrlWithChatId(chatId) {
     const url = new URL(window.location.href);
     url.searchParams.set('chatId', chatId);
-    url.searchParams.set('initiatorId', initiatorId);
-    url.searchParams.set('receiverId', receiverId);
+    url.searchParams.delete('peerId');  // Remove peerId from URL after connection
     window.history.replaceState({}, '', url);
 }
 
