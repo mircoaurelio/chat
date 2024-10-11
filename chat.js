@@ -23,7 +23,7 @@ peer.on('connection', (connection) => {
     conn = connection;
     setupConnection();
     showChatInterface();
-    displayMessage('System', 'Your friend has joined the chat!', 'system');
+    displayMessage('Your friend has joined the chat!', 'system');
 });
 
 function connectToPeer(peerId) {
@@ -34,14 +34,14 @@ function connectToPeer(peerId) {
 function setupConnection() {
     conn.on('open', () => {
         console.log('Connected to peer');
-        displayMessage('System', 'Connected to peer', 'system');
+        displayMessage('Connected to peer', 'system');
         conn.send('__USER_JOINED__');
     });
     conn.on('data', (data) => {
         if (data === '__USER_JOINED__') {
-            displayMessage('System', 'Your friend has joined the chat!', 'system');
+            displayMessage('Your friend has joined the chat!', 'system');
         } else {
-            displayMessage('Friend', data, 'friend');
+            displayMessage(data, 'friend');
             playSound(receiveSound);
         }
     });
@@ -52,17 +52,17 @@ function sendMessage() {
     const message = messageInput.value.trim();
     if (message && conn && conn.open) {
         conn.send(message);
-        displayMessage('You', message, 'you');
+        displayMessage(message, 'you');
         messageInput.value = '';
         playSound(sendSound);
     }
 }
 
-function displayMessage(sender, message, className) {
+function displayMessage(message, className) {
     const chatArea = document.getElementById('chatArea');
     const messageElement = document.createElement('div');
     messageElement.className = `message ${className}`;
-    messageElement.innerHTML = `<strong>${sender}:</strong> ${escapeHtml(message)}`;
+    messageElement.textContent = message;
     chatArea.appendChild(messageElement);
     chatArea.scrollTop = chatArea.scrollHeight;
 }
@@ -70,15 +70,6 @@ function displayMessage(sender, message, className) {
 function playSound(audioElement) {
     audioElement.currentTime = 0;
     audioElement.play().catch(error => console.error('Error playing sound:', error));
-}
-
-function escapeHtml(unsafe) {
-    return unsafe
-         .replace(/&/g, "&amp;")
-         .replace(/</g, "&lt;")
-         .replace(/>/g, "&gt;")
-         .replace(/"/g, "&quot;")
-         .replace(/'/g, "&#039;");
 }
 
 function setupCopyLinkButton(id) {
@@ -103,7 +94,8 @@ function setupCopyLinkButton(id) {
 }
 
 function showChatInterface() {
-    document.getElementById('chatInterface').style.display = 'block';
+    document.getElementById('chatInterface').style.display = 'flex';
+    document.getElementById('chatInterface').style.flexDirection = 'column';
     document.getElementById('shareInterface').style.display = 'none';
 }
 
