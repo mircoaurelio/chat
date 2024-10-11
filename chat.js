@@ -1,6 +1,9 @@
 const peer = new Peer();
 let conn;
 
+const sendSound = document.getElementById('sendSound');
+const receiveSound = document.getElementById('receiveSound');
+
 peer.on('open', (id) => {
     document.getElementById('myId').textContent = id;
     const urlParams = new URLSearchParams(window.location.search);
@@ -8,8 +11,7 @@ peer.on('open', (id) => {
     
     if (peerId) {
         connectToPeer(peerId);
-        document.getElementById('chatInterface').style.display = 'block';
-        document.getElementById('shareInterface').style.display = 'none';
+        showChatInterface();
     } else {
         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
         document.getElementById('copyLinkBtn').style.display = 'inline-block';
@@ -20,8 +22,8 @@ peer.on('open', (id) => {
 peer.on('connection', (connection) => {
     conn = connection;
     setupConnection();
-    document.getElementById('chatInterface').style.display = 'block';
-    document.getElementById('shareInterface').style.display = 'none';
+    showChatInterface();
+    displayMessage('System', 'Your friend has joined the chat!', 'system');
 });
 
 function connectToPeer(peerId) {
@@ -33,9 +35,15 @@ function setupConnection() {
     conn.on('open', () => {
         console.log('Connected to peer');
         displayMessage('System', 'Connected to peer', 'system');
+        conn.send('__USER_JOINED__');
     });
     conn.on('data', (data) => {
-        displayMessage('Friend', data, 'friend');
+        if (data === '__USER_JOINED__') {
+            displayMessage('System', 'Your friend has joined the chat!', 'system');
+        } else {
+            displayMessage('Friend', data, 'friend');
+            playSound(receiveSound);
+        }
     });
 }
 
@@ -46,6 +54,7 @@ function sendMessage() {
         conn.send(message);
         displayMessage('You', message, 'you');
         messageInput.value = '';
+        playSound(sendSound);
     }
 }
 
@@ -56,6 +65,11 @@ function displayMessage(sender, message, className) {
     messageElement.innerHTML = `<strong>${sender}:</strong> ${escapeHtml(message)}`;
     chatArea.appendChild(messageElement);
     chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function playSound(audioElement) {
+    audioElement.currentTime = 0;
+    audioElement.play().catch(error => console.error('Error playing sound:', error));
 }
 
 function escapeHtml(unsafe) {
@@ -86,6 +100,11 @@ function setupCopyLinkButton(id) {
             copyStatus.textContent = 'Failed to copy link. Please try again.';
         });
     });
+}
+
+function showChatInterface() {
+    document.getElementById('chatInterface').style.display = 'block';
+    document.getElementById('shareInterface').style.display = 'none';
 }
 
 // Allow sending messages with Enter key
