@@ -8,17 +8,14 @@ const receiveSound = document.getElementById('receiveSound');
 peer.on('open', (id) => {
     document.getElementById('myId').textContent = id;
     const urlParams = new URLSearchParams(window.location.search);
-    chatId = urlParams.get('chatId');
+    chatId = urlParams.get('chatId') || localStorage.getItem('currentChatId');
     const peerId = urlParams.get('peerId');
     
     if (chatId) {
-        // Attempt to reconnect to existing chat
         connectToChat(chatId);
     } else if (peerId) {
-        // New connection with peer ID
         connectToPeer(peerId);
     } else {
-        // New chat, waiting for connection
         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
         document.getElementById('copyLinkBtn').style.display = 'inline-block';
         setupCopyLinkButton(id);
@@ -31,7 +28,6 @@ peer.on('connection', (connection) => {
     showChatInterface();
     
     if (!chatId) {
-        // Generate new chat ID for first-time connection
         chatId = generateChatId();
         updateUrlWithChatId(chatId);
         conn.send({ type: 'chatId', chatId: chatId });
@@ -41,10 +37,10 @@ peer.on('connection', (connection) => {
 });
 
 function connectToChat(chatId) {
-    // Attempt to reconnect using stored peer ID
     const storedPeerId = localStorage.getItem(`peerId_${chatId}`);
     if (storedPeerId) {
         connectToPeer(storedPeerId);
+        loadChatHistory(chatId);
     } else {
         displayMessage('Unable to reconnect to chat. Please share a new link.', 'system');
         showShareInterface();
@@ -63,7 +59,6 @@ function setupConnection() {
         displayMessage('Connected to peer', 'system');
         
         if (chatId) {
-            // Send chatId to peer for reconnection purposes
             conn.send({ type: 'chatId', chatId: chatId });
         }
     });
@@ -73,6 +68,7 @@ function setupConnection() {
             handleChatIdMessage(data.chatId);
         } else {
             displayMessage(data, 'friend');
+            saveChatMessage(chatId, 'friend', data);
             playSound(receiveSound);
         }
     });
@@ -83,6 +79,7 @@ function handleChatIdMessage(receivedChatId) {
         chatId = receivedChatId;
         updateUrlWithChatId(chatId);
     }
+    localStorage.setItem('currentChatId', chatId);
     localStorage.setItem(`peerId_${chatId}`, conn.peer);
 }
 
@@ -92,6 +89,7 @@ function sendMessage() {
     if (message && conn && conn.open) {
         conn.send(message);
         displayMessage(message, 'you');
+        saveChatMessage(chatId, 'you', message);
         messageInput.value = '';
         playSound(sendSound);
     }
@@ -104,6 +102,21 @@ function displayMessage(message, className) {
     messageElement.textContent = message;
     chatArea.appendChild(messageElement);
     chatArea.scrollTop = chatArea.scrollHeight;
+}
+
+function saveChatMessage(chatId, sender, message) {
+    const chatHistory = JSON.parse(localStorage.getItem(`chatHistory_${chatId}`) || '[]');
+    chatHistory.push({ sender, message, timestamp: new Date().toISOString() });
+    localStorage.setItem(`chatHistory_${chatId}`, JSON.stringify(chatHistory));
+}
+
+function loadChatHistory(chatId) {
+    const chatHistory = JSON.parse(localStorage.getItem(`chatHistory_${chatId}`) || '[]');
+    const chatArea = document.getElementById('chatArea');
+    chatArea.innerHTML = '';
+    chatHistory.forEach(msg => {
+        displayMessage(msg.message, msg.sender);
+    });
 }
 
 function playSound(audioElement) {
