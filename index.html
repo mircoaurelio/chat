@@ -72,6 +72,12 @@
 </head>
 <body>
     <div class="container">
+        <div id="shareInterface" class="text-center mt-3">
+            <h2>Welcome to P2P Chat</h2>
+            <p id="loadingMessage">Generating your unique ID...</p>
+            <button id="copyLinkBtn" class="btn btn-success" style="display: none;">Copy Chat Link</button>
+            <p id="copyStatus" class="mt-2"></p>
+        </div>
         <div id="chatInterface" style="display: none;">
             <div class="chat-container">
                 <div class="chat-header">
@@ -87,13 +93,11 @@
                 </div>
             </div>
         </div>
-        <div id="shareInterface" class="text-center mt-3">
-            <h2>P2P Chat</h2>
-            <p id="loadingMessage">Initializing chat...</p>
-            <button id="copyLinkBtn" class="btn btn-success" style="display: none;">Copy Chat Link</button>
-            <p id="copyStatus" class="mt-2"></p>
-        </div>
     </div>
+
+    <!-- Add these audio elements at the end of the body -->
+    <audio id="sendSound" src="https://cdn.freesound.org/previews/573/573704_5674468-lq.mp3"></audio>
+    <audio id="receiveSound" src="https://cdn.freesound.org/previews/573/573705_5674468-lq.mp3"></audio>
 
     <script src="chat.js"></script>
 </body>
