@@ -7,7 +7,6 @@ peer.on('open', (id) => {
     const peerId = urlParams.get('id');
     if (peerId) connectToPeer(peerId);
     
-    // Set up the copy link button
     setupCopyLinkButton(id);
 });
 
@@ -24,10 +23,10 @@ function connectToPeer(peerId) {
 function setupConnection() {
     conn.on('open', () => {
         console.log('Connected to peer');
-        displayMessage('System', 'Connected to peer');
+        displayMessage('System', 'Connected to peer', 'system');
     });
     conn.on('data', (data) => {
-        displayMessage('Friend', data);
+        displayMessage('Friend', data, 'friend');
     });
 }
 
@@ -36,14 +35,15 @@ function sendMessage() {
     const message = messageInput.value.trim();
     if (message && conn && conn.open) {
         conn.send(message);
-        displayMessage('You', message);
+        displayMessage('You', message, 'you');
         messageInput.value = '';
     }
 }
 
-function displayMessage(sender, message) {
+function displayMessage(sender, message, className) {
     const chatArea = document.getElementById('chatArea');
-    const messageElement = document.createElement('p');
+    const messageElement = document.createElement('div');
+    messageElement.className = `message ${className}`;
     messageElement.innerHTML = `<strong>${sender}:</strong> ${escapeHtml(message)}`;
     chatArea.appendChild(messageElement);
     chatArea.scrollTop = chatArea.scrollHeight;
