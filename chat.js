@@ -25,17 +25,14 @@ peer.on('open', (id) => {
             // If neither ID matches, show the share interface
             showShareInterface();
         }
-    } else if (!chatId && !initiatorId && !receiverId) {
+    } else if (initiatorId && !receiverId) {
+        // New connection for receiver
+        isInitiator = false;
+        connectToPeer(initiatorId);
+    } else {
         // New chat, waiting for connection (initiator)
         isInitiator = true;
-        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-        document.getElementById('copyLinkBtn').style.display = 'inline-block';
-        setupCopyLinkButton(id);
-    } else {
-        // New connection with peer ID (receiver)
-        isInitiator = false;
-        const peerId = initiatorId || receiverId;
-        connectToPeer(peerId);
+        showShareInterface();
     }
 });
 
