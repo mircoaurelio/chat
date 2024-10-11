@@ -5,14 +5,23 @@ peer.on('open', (id) => {
     document.getElementById('myId').textContent = id;
     const urlParams = new URLSearchParams(window.location.search);
     const peerId = urlParams.get('id');
-    if (peerId) connectToPeer(peerId);
     
-    setupCopyLinkButton(id);
+    if (peerId) {
+        connectToPeer(peerId);
+        document.getElementById('chatInterface').style.display = 'block';
+        document.getElementById('shareInterface').style.display = 'none';
+    } else {
+        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+        document.getElementById('copyLinkBtn').style.display = 'inline-block';
+        setupCopyLinkButton(id);
+    }
 });
 
 peer.on('connection', (connection) => {
     conn = connection;
     setupConnection();
+    document.getElementById('chatInterface').style.display = 'block';
+    document.getElementById('shareInterface').style.display = 'none';
 });
 
 function connectToPeer(peerId) {
