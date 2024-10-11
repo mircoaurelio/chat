@@ -7,25 +7,29 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
         body {
+            display: flex;
+            flex-direction: column;
             background-color: #f0f2f5;
         }
         .chat-container {
-            max-width: 500px;
-            margin: 20px auto;
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
             background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
         }
         .chat-header {
             background-color: #075e54;
             color: white;
             padding: 10px 15px;
-            border-top-left-radius: 10px;
-            border-top-right-radius: 10px;
         }
         #chatArea {
-            height: 400px;
+            flex-grow: 1;
             overflow-y: auto;
             padding: 15px;
             background-color: #e5ddd5;
@@ -48,11 +52,20 @@
             float: right;
             clear: both;
         }
+        .message.system {
+            background-color: #ffe6cc;
+            color: #856404;
+            text-align: center;
+            clear: both;
+            float: none;
+            margin-left: auto;
+            margin-right: auto;
+            max-width: 60%;
+            font-size: 0.9em;
+        }
         .message-input {
             background-color: #f0f0f0;
             padding: 10px;
-            border-bottom-left-radius: 10px;
-            border-bottom-right-radius: 10px;
         }
         #copyLinkBtn {
             background-color: #128c7e;
@@ -62,42 +75,43 @@
             font-size: 0.8em;
             color: #4caf50;
         }
-        #loadingMessage {
+        #adBox {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
             text-align: center;
-            padding: 20px;
             font-style: italic;
-            color: #666;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div id="shareInterface" class="text-center mt-3">
-            <h2>Welcome to P2P Chat</h2>
-            <p id="loadingMessage">Generating your unique ID...</p>
-            <button id="copyLinkBtn" class="btn btn-success" style="display: none;">Copy Chat Link</button>
-            <p id="copyStatus" class="mt-2"></p>
-        </div>
-        <div id="chatInterface" style="display: none;">
-            <div class="chat-container">
-                <div class="chat-header">
-                    <h5 class="mb-0">P2P Chat</h5>
-                    <small>Your ID: <span id="myId"></span></small>
-                </div>
-                <div id="chatArea"></div>
-                <div class="message-input">
-                    <div class="input-group">
-                        <input type="text" id="messageInput" class="form-control" placeholder="Type a message">
-                        <button class="btn btn-primary" onclick="sendMessage()">Send</button>
-                    </div>
+    <div id="shareInterface" class="container text-center mt-3">
+        <h2>Welcome to P2P Chat</h2>
+        <p id="loadingMessage">Generating your unique ID...</p>
+        <button id="copyLinkBtn" class="btn btn-success" style="display: none;">Copy Chat Link</button>
+        <p id="copyStatus" class="mt-2"></p>
+    </div>
+    <div id="chatInterface" style="display: none; height: 100%;">
+        <div class="chat-container">
+            <div class="chat-header">
+                <h5 class="mb-0">P2P Chat</h5>
+                <small>Your ID: <span id="myId"></span></small>
+            </div>
+            <div id="chatArea"></div>
+            <div class="message-input">
+                <div class="input-group">
+                    <input type="text" id="messageInput" class="form-control" placeholder="Type a message">
+                    <button class="btn btn-primary" onclick="sendMessage()">Send</button>
                 </div>
             </div>
         </div>
+        <div id="adBox">
+            Advertisement space
+        </div>
     </div>
 
-    <!-- Add these audio elements at the end of the body -->
-    <audio id="sendSound" src="https://cdn.freesound.org/previews/573/573704_5674468-lq.mp3"></audio>
-    <audio id="receiveSound" src="https://cdn.freesound.org/previews/573/573705_5674468-lq.mp3"></audio>
+    <audio id="sendSound" src="send.mp3"></audio>
+    <audio id="receiveSound" src="receive.mp3"></audio>
 
     <script src="chat.js"></script>
 </body>
