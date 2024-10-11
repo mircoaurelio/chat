@@ -14,15 +14,20 @@ peer.on('open', (id) => {
     chatId = urlParams.get('chatId');
     const peerId = urlParams.get('peerId');
     
+    console.log('Peer opened. My ID:', id, 'Chat ID:', chatId, 'Peer ID:', peerId);
+
     if (chatId && peerId) {
         // Reconnecting to existing chat
+        console.log('Reconnecting to existing chat');
         connectToPeer(peerId);
     } else if (peerId) {
         // New connection with peer ID (receiver)
+        console.log('New connection as receiver');
         isInitiator = false;
         connectToPeer(peerId);
     } else {
         // New chat, waiting for connection (initiator)
+        console.log('New chat as initiator');
         isInitiator = true;
         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
         document.getElementById('copyLinkBtn').style.display = 'inline-block';
@@ -49,23 +54,26 @@ peer.on('connection', (connection) => {
 });
 
 function connectToPeer(peerId) {
-    conn = peer.connect(peerId);
+    console.log('Connecting to peer:', peerId);
+    conn = peer.connect(peerId, { reliable: true });
     setupConnection();
-    showChatInterface();
 }
 
 function setupConnection() {
     conn.on('open', () => {
         console.log('Connected to peer');
         displayMessage('Connected to peer', 'system');
+        showChatInterface();
         
         if (chatId && isInitiator) {
             // Send chatId to peer for reconnection purposes
+            console.log('Sending chat ID to peer');
             conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
         }
     });
     
     conn.on('data', (data) => {
+        console.log('Received data:', data);
         if (typeof data === 'object' && data.type === 'chatId') {
             handleChatIdMessage(data.chatId, data.initiatorId);
         } else {
@@ -74,11 +82,15 @@ function setupConnection() {
         }
     });
 
-    // Add this new event listener
     conn.on('close', () => {
         console.log('Connection closed');
         displayMessage('Your friend has disconnected', 'system');
         // You can add additional logic here, like disabling the chat interface
+    });
+
+    conn.on('error', (err) => {
+        console.error('Connection error:', err);
+        displayMessage('Connection error: ' + err.message, 'system');
     });
 }
 
@@ -159,8 +171,14 @@ document.getElementById('messageInput').addEventListener('keypress', function(e)
     }
 });
 
-// Add this new function
 function checkConnectionStatus() {
+    console.log('Checking connection status');
+    if (conn) {
+        console.log('Connection state:', conn.open ? 'open' : 'closed');
+    } else {
+        console.log('No connection established');
+    }
+    
     if (conn && !conn.open) {
         console.log('Connection lost');
         displayMessage('Connection lost. Attempting to reconnect...', 'system');
