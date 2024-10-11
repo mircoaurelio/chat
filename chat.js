@@ -6,6 +6,9 @@ peer.on('open', (id) => {
     const urlParams = new URLSearchParams(window.location.search);
     const peerId = urlParams.get('id');
     if (peerId) connectToPeer(peerId);
+    
+    // Set up the copy link button
+    setupCopyLinkButton(id);
 });
 
 peer.on('connection', (connection) => {
@@ -53,6 +56,27 @@ function escapeHtml(unsafe) {
          .replace(/>/g, "&gt;")
          .replace(/"/g, "&quot;")
          .replace(/'/g, "&#039;");
+}
+
+function setupCopyLinkButton(id) {
+    const copyLinkBtn = document.getElementById('copyLinkBtn');
+    const copyStatus = document.getElementById('copyStatus');
+
+    copyLinkBtn.addEventListener('click', () => {
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.set('id', id);
+        const fullUrl = currentUrl.toString();
+
+        navigator.clipboard.writeText(fullUrl).then(() => {
+            copyStatus.textContent = 'Link copied to clipboard!';
+            setTimeout(() => {
+                copyStatus.textContent = '';
+            }, 3000);
+        }, (err) => {
+            console.error('Could not copy text: ', err);
+            copyStatus.textContent = 'Failed to copy link. Please try again.';
+        });
+    });
 }
 
 // Allow sending messages with Enter key
