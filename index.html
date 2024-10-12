@@ -130,10 +130,17 @@ This specification outlines the core functionality and design of the chat applic
             font-style: italic;
         }
         #videoCallContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
             display: flex;
             flex-direction: column;
             align-items: center;
-            margin-top: 20px;
+            justify-content: center;
+            z-index: 1000;
         }
         #localVideo, #remoteVideo {
             width: 320px;
@@ -141,7 +148,7 @@ This specification outlines the core functionality and design of the chat applic
             margin-bottom: 10px;
             background-color: #000;
         }
-        #startCallBtn, #endCallBtn {
+        #endCallBtn {
             margin-top: 10px;
         }
     </style>
@@ -170,6 +177,7 @@ This specification outlines the core functionality and design of the chat applic
                     <input type="text" id="messageInput" class="form-control" placeholder="Type a message">
                     <input type="file" id="fileInput" accept="image/*" style="display: none;">
                     <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">📷</button>
+                    <button id="startCallBtn" class="btn btn-success">📞</button>
                     <button class="btn btn-primary" onclick="sendMessage()">Send</button>
                 </div>
             </div>
@@ -177,8 +185,7 @@ This specification outlines the core functionality and design of the chat applic
         <div id="videoCallContainer" style="display: none;">
             <video id="localVideo" autoplay muted></video>
             <video id="remoteVideo" autoplay></video>
-            <button id="startCallBtn" class="btn btn-success">Start Video Call</button>
-            <button id="endCallBtn" class="btn btn-danger" style="display: none;">End Call</button>
+            <button id="endCallBtn" class="btn btn-danger">End Call</button>
         </div>
         <div id="adBox">
             Advertisement space
