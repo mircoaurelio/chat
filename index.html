@@ -129,6 +129,21 @@ This specification outlines the core functionality and design of the chat applic
             text-align: center;
             font-style: italic;
         }
+        #videoCallContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        #localVideo, #remoteVideo {
+            width: 320px;
+            height: 240px;
+            margin-bottom: 10px;
+            background-color: #000;
+        }
+        #startCallBtn, #endCallBtn {
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -159,6 +174,12 @@ This specification outlines the core functionality and design of the chat applic
                 </div>
             </div>
         </div>
+        <div id="videoCallContainer" style="display: none;">
+            <video id="localVideo" autoplay muted></video>
+            <video id="remoteVideo" autoplay></video>
+            <button id="startCallBtn" class="btn btn-success">Start Video Call</button>
+            <button id="endCallBtn" class="btn btn-danger" style="display: none;">End Call</button>
+        </div>
         <div id="adBox">
             Advertisement space
         </div>
@@ -181,6 +202,9 @@ This specification outlines the core functionality and design of the chat applic
         let chatId;
         let myPeerId;
         let isInitiator = false;
+        let localStream;
+        let remoteStream;
+        let mediaConnection;
 
         // Add this function to create and play sounds
         function createAndPlaySound(frequency, duration) {
@@ -263,6 +287,27 @@ This specification outlines the core functionality and design of the chat applic
             
             log('Your friend has joined the chat!');
             displayMessage('Your friend has joined the chat!', 'system');
+            
+            peer.on('call', (call) => {
+                if (confirm('Incoming video call. Do you want to answer?')) {
+                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                        .then((stream) => {
+                            localStream = stream;
+                            document.getElementById('localVideo').srcObject = stream;
+                            call.answer(stream);
+                            setupMediaConnection(call);
+                            document.getElementById('videoCallContainer').style.display = 'block';
+                            document.getElementById('startCallBtn').style.display = 'none';
+                            document.getElementById('endCallBtn').style.display = 'inline-block';
+                        })
+                        .catch((err) => {
+                            console.error('Failed to get local stream', err);
+                            alert('Failed to answer video call. Please check your camera and microphone permissions.');
+                        });
+                } else {
+                    call.close();
+                }
+            });
         });
 
         function connectToPeer(peerId) {
@@ -363,7 +408,11 @@ This specification outlines the core functionality and design of the chat applic
             const messageElement = document.createElement('div');
             messageElement.className = `message ${className}`;
             
-            if (message.type === 'text') {
+            if (typeof message === 'string') {
+                // Handle system messages
+                messageElement.textContent = message;
+                messageElement.classList.add('system');
+            } else if (message.type === 'text') {
                 messageElement.textContent = message.content;
             } else if (message.type === 'image') {
                 const img = document.createElement('img');
@@ -471,6 +520,52 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add event listener for file input
         document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+
+        // Add this function to start a video call
+        async function startVideoCall() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('videoCallContainer').style.display = 'block';
+                document.getElementById('startCallBtn').style.display = 'none';
+                document.getElementById('endCallBtn').style.display = 'inline-block';
+
+                mediaConnection = peer.call(conn.peer, localStream);
+                setupMediaConnection(mediaConnection);
+            } catch (err) {
+                console.error('Failed to get local stream', err);
+                alert('Failed to start video call. Please check your camera and microphone permissions.');
+            }
+        }
+
+        // Add this function to end a video call
+        function endVideoCall() {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            if (mediaConnection) {
+                mediaConnection.close();
+            }
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideo').srcObject = null;
+            document.getElementById('videoCallContainer').style.display = 'none';
+            document.getElementById('startCallBtn').style.display = 'inline-block';
+            document.getElementById('endCallBtn').style.display = 'none';
+        }
+
+        // Add this function to set up the media connection
+        function setupMediaConnection(call) {
+            call.on('stream', (remoteStream) => {
+                document.getElementById('remoteVideo').srcObject = remoteStream;
+            });
+            call.on('close', () => {
+                endVideoCall();
+            });
+        }
+
+        // Add event listeners for video call buttons
+        document.getElementById('startCallBtn').addEventListener('click', startVideoCall);
+        document.getElementById('endCallBtn').addEventListener('click', endVideoCall);
     </script>
     0.146
 </body>
