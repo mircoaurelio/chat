@@ -183,12 +183,16 @@ This specification outlines the core functionality and design of the chat applic
             </div>
         </div>
         <div id="videoCallContainer" style="display: none;">
-            <video id="localVideo" autoplay muted></video>
-            <video id="remoteVideo" autoplay></video>
+            <div id="remoteVideoWrapper">
+                <video id="remoteVideo" autoplay></video>
+            </div>
+            <div id="localVideoWrapper">
+                <video id="localVideo" autoplay muted></video>
+            </div>
             <button id="endCallBtn" class="btn btn-danger">End Call</button>
         </div>
         <div id="adBox">
-            Advertisement space
+             0.156
         </div>
     </div>
 
@@ -533,12 +537,14 @@ This specification outlines the core functionality and design of the chat applic
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('localVideo').srcObject = localStream;
-                document.getElementById('videoCallContainer').style.display = 'block';
+                document.getElementById('videoCallContainer').style.display = 'flex';
                 document.getElementById('startCallBtn').style.display = 'none';
-                document.getElementById('endCallBtn').style.display = 'inline-block';
 
                 mediaConnection = peer.call(conn.peer, localStream);
                 setupMediaConnection(mediaConnection);
+
+                // Send a message to the peer to prepare for the call
+                conn.send({ type: 'prepareForCall' });
             } catch (err) {
                 console.error('Failed to get local stream', err);
                 alert('Failed to start video call. Please check your camera and microphone permissions.');
@@ -557,13 +563,14 @@ This specification outlines the core functionality and design of the chat applic
             document.getElementById('remoteVideo').srcObject = null;
             document.getElementById('videoCallContainer').style.display = 'none';
             document.getElementById('startCallBtn').style.display = 'inline-block';
-            document.getElementById('endCallBtn').style.display = 'none';
         }
 
         // Add this function to set up the media connection
         function setupMediaConnection(call) {
             call.on('stream', (remoteStream) => {
-                document.getElementById('remoteVideo').srcObject = remoteStream;
+                console.log('Received remote stream');
+                const remoteVideo = document.getElementById('remoteVideo');
+                remoteVideo.srcObject = remoteStream;
             });
             call.on('close', () => {
                 endVideoCall();
@@ -574,6 +581,6 @@ This specification outlines the core functionality and design of the chat applic
         document.getElementById('startCallBtn').addEventListener('click', startVideoCall);
         document.getElementById('endCallBtn').addEventListener('click', endVideoCall);
     </script>
-    0.146
+ 
 </body>
 </html>
