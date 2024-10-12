@@ -98,6 +98,7 @@
                 <h5 class="mb-0">P2P Chat</h5>
                 <small>Your ID: <span id="myId"></span></small>
             </div>
+            <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
             <div id="chatArea"></div>
             <div class="message-input">
                 <div class="input-group">
@@ -133,22 +134,35 @@
             
             console.log('Peer opened. My ID:', id, 'Chat ID:', chatId, 'Peer ID:', peerId);
 
-            if (chatId && peerId) {
-                console.log('Reconnecting to existing chat');
-                connectToPeer(peerId);
-            } else if (peerId) {
-                console.log('New connection as receiver');
-                isInitiator = false;
-                connectToPeer(peerId);
-            } else {
-                console.log('New chat as initiator');
-                isInitiator = true;
-                document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-                document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                setupCopyLinkButton(id);
-            }
-            
-            setInterval(checkConnectionStatus, 5000);
+            // Delay the connection attempt to ensure PeerJS is fully initialized
+            setTimeout(() => {
+                if (chatId && peerId) {
+                    console.log('Reconnecting to existing chat');
+                    connectToPeer(peerId);
+                } else if (peerId) {
+                    console.log('New connection as receiver');
+                    isInitiator = false;
+                    connectToPeer(peerId);
+                } else {
+                    console.log('New chat as initiator');
+                    isInitiator = true;
+                    document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+                    document.getElementById('copyLinkBtn').style.display = 'inline-block';
+                    setupCopyLinkButton(id);
+                }
+            }, 1000); // 1 second delay
+
+            // Replace setInterval with a more battery-friendly approach
+            let lastCheckTime = Date.now();
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    const now = Date.now();
+                    if (now - lastCheckTime > 5000) {
+                        checkConnectionStatus();
+                        lastCheckTime = now;
+                    }
+                }
+            });
         });
 
         peer.on('connection', (connection) => {
@@ -167,11 +181,45 @@
 
         function connectToPeer(peerId) {
             console.log('Connecting to peer:', peerId);
+            if (conn) {
+                conn.close();
+            }
             conn = peer.connect(peerId, { reliable: true });
             setupConnection();
+            
+            // Implement a retry mechanism
+            let retryCount = 0;
+            const maxRetries = 5;
+            const retryInterval = 5000; // 5 seconds
+
+            function retryConnection() {
+                if (retryCount < maxRetries) {
+                    retryCount++;
+                    console.log(`Retry attempt ${retryCount}`);
+                    conn = peer.connect(peerId, { reliable: true });
+                    setupConnection();
+                    setTimeout(() => {
+                        if (!conn.open) {
+                            retryConnection();
+                        }
+                    }, retryInterval);
+                } else {
+                    console.log('Max retries reached. Unable to connect.');
+                    displayMessage('Unable to connect. Please try again later.', 'system');
+                }
+            }
+
+            // Start the retry process if the initial connection fails
+            setTimeout(() => {
+                if (!conn.open) {
+                    retryConnection();
+                }
+            }, retryInterval);
         }
 
         function setupConnection() {
+            hideReconnectButton();
+            
             conn.on('open', () => {
                 console.log('Connected to peer');
                 displayMessage('Connected to peer', 'system');
@@ -196,11 +244,13 @@
             conn.on('close', () => {
                 console.log('Connection closed');
                 displayMessage('Your friend has disconnected', 'system');
+                showReconnectButton();
             });
 
             conn.on('error', (err) => {
                 console.error('Connection error:', err);
                 displayMessage('Connection error: ' + err.message, 'system');
+                showReconnectButton();
             });
         }
 
@@ -296,9 +346,21 @@
                 }
             }
         }
-    </script>
-<div><span>0.145</span></div>
-</body>
-    
 
+        function showReconnectButton() {
+            document.getElementById('reconnectBtn').style.display = 'inline-block';
+        }
+
+        function hideReconnectButton() {
+            document.getElementById('reconnectBtn').style.display = 'none';
+        }
+
+        document.getElementById('reconnectBtn').addEventListener('click', () => {
+            if (conn && conn.peer) {
+                connectToPeer(conn.peer);
+            }
+        });
+    </script>
+    0.146
+</body>
 </html>
