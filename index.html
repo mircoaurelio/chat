@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P Chat with SimpleWebRTC</title>
+    <title>P2P Chat</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/simplewebrtc/3.0.2/simplewebrtc-with-adapter.min.js"></script>
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
     <style>
         html, body {
             height: 100%;
@@ -87,7 +88,7 @@
 <body>
     <div id="shareInterface" class="container text-center mt-3">
         <h2>Welcome to P2P Chat</h2>
-        <p id="loadingMessage">Generating your unique room...</p>
+        <p id="loadingMessage">Generating your unique ID...</p>
         <button id="copyLinkBtn" class="btn btn-success" style="display: none;">Copy Chat Link</button>
         <p id="copyStatus" class="mt-2"></p>
         <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
@@ -98,7 +99,7 @@
         <div class="chat-container">
             <div class="chat-header">
                 <h5 class="mb-0">P2P Chat</h5>
-                <small>Room: <span id="roomName"></span></small>
+                <small>Your ID: <span id="myId"></span></small>
             </div>
             <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
             <div id="chatArea"></div>
@@ -126,83 +127,163 @@
             logMessage.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
             logArea.appendChild(logMessage);
             logArea.scrollTop = logArea.scrollHeight;
-            console.log(message);
+            console.log(message); // Also log to console for desktop debugging
         }
 
-        let webrtc;
-        let roomName;
+        const peer = new Peer();
+        let conn;
+        let chatId;
+        let myPeerId;
+        let isInitiator = false;
 
-        function initializeWebRTC() {
-            webrtc = new SimpleWebRTC({
-                // the id/element dom element that will hold "our" video
-                localVideoEl: null,
-                // the id/element dom element that will hold remote videos
-                remoteVideosEl: null,
-                // immediately ask for camera access
-                autoRequestMedia: false,
-                debug: false,
-                detectSpeakingEvents: false,
-                autoAdjustMic: false
+        const sendSound = document.getElementById('sendSound');
+        const receiveSound = document.getElementById('receiveSound');
+
+        peer.on('open', (id) => {
+            myPeerId = id;
+            document.getElementById('myId').textContent = id;
+            const urlParams = new URLSearchParams(window.location.search);
+            chatId = urlParams.get('chatId');
+            const peerId = urlParams.get('peerId');
+            
+            log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
+
+            // Delay the connection attempt to ensure PeerJS is fully initialized
+            setTimeout(() => {
+                if (chatId && peerId) {
+                    log('Reconnecting to existing chat');
+                    connectToPeer(peerId);
+                } else if (peerId) {
+                    log('New connection as receiver');
+                    isInitiator = false;
+                    connectToPeer(peerId);
+                } else {
+                    log('New chat as initiator');
+                    isInitiator = true;
+                    document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+                    document.getElementById('copyLinkBtn').style.display = 'inline-block';
+                    setupCopyLinkButton(id);
+                }
+            }, 1000); // 1 second delay
+
+            // Replace setInterval with a more battery-friendly approach
+            let lastCheckTime = Date.now();
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    const now = Date.now();
+                    if (now - lastCheckTime > 5000) {
+                        checkConnectionStatus();
+                        lastCheckTime = now;
+                    }
+                }
             });
+        });
 
-            webrtc.on('connectionReady', function (sessionId) {
-                log('SimpleWebRTC connection ready. Session ID: ' + sessionId);
-            });
+        peer.on('connection', (connection) => {
+            conn = connection;
+            setupConnection();
+            showChatInterface();
+            
+            if (isInitiator && !chatId) {
+                chatId = generateChatId();
+                updateUrlWithChatIdAndPeerId(chatId, myPeerId);
+                conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+            }
+            
+            log('Your friend has joined the chat!');
+            displayMessage('Your friend has joined the chat!', 'system');
+        });
 
-            webrtc.on('createdPeer', function (peer) {
-                log('Peer created: ' + peer.id);
-            });
+        function connectToPeer(peerId) {
+            log(`Connecting to peer: ${peerId}`);
+            if (conn) {
+                conn.close();
+            }
+            conn = peer.connect(peerId, { reliable: true });
+            setupConnection();
+            
+            // Implement a retry mechanism
+            let retryCount = 0;
+            const maxRetries = 5;
+            const retryInterval = 5000; // 5 seconds
 
-            webrtc.on('joinedRoom', function (name) {
-                log('Joined room: ' + name);
-                roomName = name;
-                document.getElementById('roomName').textContent = name;
+            function retryConnection() {
+                if (retryCount < maxRetries) {
+                    retryCount++;
+                    log(`Retry attempt ${retryCount}`);
+                    conn = peer.connect(peerId, { reliable: true });
+                    setupConnection();
+                    setTimeout(() => {
+                        if (!conn.open) {
+                            retryConnection();
+                        }
+                    }, retryInterval);
+                } else {
+                    log('Max retries reached. Unable to connect.');
+                    displayMessage('Unable to connect. Please try again later.', 'system');
+                }
+            }
+
+            // Start the retry process if the initial connection fails
+            setTimeout(() => {
+                if (!conn.open) {
+                    retryConnection();
+                }
+            }, retryInterval);
+        }
+
+        function setupConnection() {
+            hideReconnectButton();
+            
+            conn.on('open', () => {
+                log('Connected to peer');
+                displayMessage('Connected to peer', 'system');
                 showChatInterface();
-                hideReconnectButton();
+                
+                if (chatId && isInitiator) {
+                    log('Sending chat ID to peer');
+                    conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+                }
             });
-
-            webrtc.on('leftRoom', function (name) {
-                log('Left room: ' + name);
-                showReconnectButton();
-            });
-
-            webrtc.on('channelMessage', function (peer, label, data) {
-                if (data.type === 'chat') {
-                    log('Received message: ' + data.payload);
-                    displayMessage(data.payload, 'friend');
+            
+            conn.on('data', (data) => {
+                log(`Received data: ${JSON.stringify(data)}`);
+                if (typeof data === 'object' && data.type === 'chatId') {
+                    handleChatIdMessage(data.chatId, data.initiatorId);
+                } else {
+                    displayMessage(data, 'friend');
+                    playSound(receiveSound);
                 }
             });
 
-            const urlParams = new URLSearchParams(window.location.search);
-            roomName = urlParams.get('room');
+            conn.on('close', () => {
+                log('Connection closed');
+                displayMessage('Your friend has disconnected', 'system');
+                showReconnectButton();
+            });
 
-            if (roomName) {
-                log('Joining existing room: ' + roomName);
-                webrtc.joinRoom(roomName);
-            } else {
-                roomName = generateRoomName();
-                log('Creating new room: ' + roomName);
-                webrtc.createRoom(roomName, function (err, name) {
-                    if (!err) {
-                        log('Room created successfully: ' + name);
-                        updateUrlWithRoomName(name);
-                        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-                        document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                        setupCopyLinkButton();
-                    } else {
-                        log('Error creating room: ' + err);
-                    }
-                });
+            conn.on('error', (err) => {
+                log(`Connection error: ${err.message}`);
+                displayMessage('Connection error: ' + err.message, 'system');
+                showReconnectButton();
+            });
+        }
+
+        function handleChatIdMessage(receivedChatId, initiatorId) {
+            if (!chatId) {
+                chatId = receivedChatId;
+                updateUrlWithChatIdAndPeerId(chatId, initiatorId);
             }
         }
 
         function sendMessage() {
             const messageInput = document.getElementById('messageInput');
             const message = messageInput.value.trim();
-            if (message) {
-                webrtc.sendDirectlyToAll('chat', 'chat', message);
+            if (message && conn && conn.open) {
+                conn.send(message);
                 displayMessage(message, 'you');
                 messageInput.value = '';
+                playSound(sendSound);
             }
         }
 
@@ -215,29 +296,21 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        function showChatInterface() {
-            document.getElementById('chatInterface').style.display = 'flex';
-            document.getElementById('chatInterface').style.flexDirection = 'column';
-            document.getElementById('shareInterface').style.display = 'none';
+        function playSound(audioElement) {
+            audioElement.currentTime = 0;
+            audioElement.play().catch(error => console.error('Error playing sound:', error));
         }
 
-        function generateRoomName() {
-            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        }
-
-        function updateUrlWithRoomName(name) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('room', name);
-            window.history.replaceState({}, '', url);
-        }
-
-        function setupCopyLinkButton() {
+        function setupCopyLinkButton(id) {
             const copyLinkBtn = document.getElementById('copyLinkBtn');
             const copyStatus = document.getElementById('copyStatus');
 
             copyLinkBtn.addEventListener('click', () => {
-                const currentUrl = window.location.href;
-                navigator.clipboard.writeText(currentUrl).then(() => {
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('peerId', id);
+                const fullUrl = currentUrl.toString();
+
+                navigator.clipboard.writeText(fullUrl).then(() => {
                     copyStatus.textContent = 'Link copied to clipboard!';
                     setTimeout(() => {
                         copyStatus.textContent = '';
@@ -249,6 +322,46 @@
             });
         }
 
+        function showChatInterface() {
+            document.getElementById('chatInterface').style.display = 'flex';
+            document.getElementById('chatInterface').style.flexDirection = 'column';
+            document.getElementById('shareInterface').style.display = 'none';
+        }
+
+        function generateChatId() {
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        }
+
+        function updateUrlWithChatIdAndPeerId(chatId, peerId) {
+            const url = new URL(window.location.href);
+            url.searchParams.set('chatId', chatId);
+            url.searchParams.set('peerId', peerId);
+            window.history.replaceState({}, '', url);
+        }
+
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        function checkConnectionStatus() {
+            log('Checking connection status');
+            if (conn) {
+                log(`Connection state: ${conn.open ? 'open' : 'closed'}`);
+            } else {
+                log('No connection established');
+            }
+            
+            if (conn && !conn.open) {
+                log('Connection lost');
+                displayMessage('Connection lost. Attempting to reconnect...', 'system');
+                if (chatId) {
+                    connectToPeer(conn.peer);
+                }
+            }
+        }
+
         function showReconnectButton() {
             document.getElementById('reconnectBtn').style.display = 'inline-block';
         }
@@ -258,19 +371,11 @@
         }
 
         document.getElementById('reconnectBtn').addEventListener('click', () => {
-            if (roomName) {
-                webrtc.joinRoom(roomName);
+            if (conn && conn.peer) {
+                connectToPeer(conn.peer);
             }
         });
-
-        document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-
-        // Initialize WebRTC when the page loads
-        window.onload = initializeWebRTC;
     </script>
+    0.146
 </body>
 </html>
