@@ -87,8 +87,10 @@
 </head>
 <body>
     <div id="shareInterface" class="container text-center mt-3">
-        <h2>Welcome to P2P Chat</h2>
-        <p id="loadingMessage">Generating your unique ID...</p>
+        <h2>P2P Chat</h2>
+          <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
+          
+        <p id="loadingMessage">...</p>
         <button id="copyLinkBtn" class="btn btn-success" style="display: none;">Copy Chat Link</button>
         <p id="copyStatus" class="mt-2"></p>
         <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
@@ -99,9 +101,8 @@
         <div class="chat-container">
             <div class="chat-header">
                 <h5 class="mb-0">P2P Chat</h5>
-                <small>Your ID: <span id="myId"></span></small>
+                <small><span id="myId"></span></small>
             </div>
-            <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
             <div id="chatArea"></div>
             <div class="message-input">
                 <div class="input-group">
@@ -111,7 +112,7 @@
             </div>
         </div>
         <div id="adBox">
-               0.151
+           0.152
         </div>
     </div>
 
@@ -376,6 +377,6 @@
             }
         });
     </script>
-
+  
 </body>
 </html>
