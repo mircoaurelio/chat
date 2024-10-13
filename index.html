@@ -244,7 +244,7 @@ This specification outlines the core functionality and design of the chat applic
             console.log(message); // Also log to console for desktop debugging
         }
 
-        let peer;
+        const peer = new Peer();
         let conn;
         let chatId;
         let myPeerId;
@@ -291,121 +291,81 @@ This specification outlines the core functionality and design of the chat applic
             }, duration);
         }
 
-        function endVideoCall(isInitiator = true) {
-            console.log('Ending video call');
+        peer.on('open', (id) => {
+            myPeerId = id;
+            document.getElementById('myId').textContent = id;
+            const urlParams = new URLSearchParams(window.location.search);
+            chatId = urlParams.get('chatId');
+            const peerId = urlParams.get('peerId');
             
-            // Stop all tracks in the local stream
-            if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    track.stop();
-                });
-                localStream = null;
-            }
+            log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
 
-            // Stop all tracks in the remote stream
-            if (remoteStream) {
-                remoteStream.getTracks().forEach(track => {
-                    track.stop();
-                });
-                remoteStream = null;
-            }
+            // Delay the connection attempt to ensure PeerJS is fully initialized
+            setTimeout(() => {
+                if (chatId && peerId) {
+                    log('Reconnecting to existing chat');
+                    connectToPeer(peerId);
+                } else if (peerId) {
+                    log('New connection as receiver');
+                    isInitiator = false;
+                    connectToPeer(peerId);
+                } else {
+                    log('New chat as initiator');
+                    isInitiator = true;
+                    document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+                    document.getElementById('copyLinkBtn').style.display = 'inline-block';
+                    setupCopyLinkButton(id);
+                }
+            }, 1000); // 1 second delay
 
-            // Close the media connection
-            if (mediaConnection) {
-                mediaConnection.close();
-                mediaConnection = null;
-            }
-
-            // Clear video elements
-            const localVideo = document.getElementById('localVideo');
-            const remoteVideo = document.getElementById('remoteVideo');
-            if (localVideo.srcObject) {
-                localVideo.srcObject.getTracks().forEach(track => track.stop());
-                localVideo.srcObject = null;
-            }
-            if (remoteVideo.srcObject) {
-                remoteVideo.srcObject.getTracks().forEach(track => track.stop());
-                remoteVideo.srcObject = null;
-            }
-
-            // Hide video call container and show start call button
-            document.getElementById('videoCallContainer').style.display = 'none';
-            document.getElementById('startCallBtn').style.display = 'inline-block';
-
-            if (isInitiator && conn) {
-                conn.send({ type: 'endCall' });
-            }
-            
-            displayMessage(isInitiator ? 'You ended the video call' : 'Your friend ended the video call', 'system');
-
-            // Ensure peer connection is closed
-            if (peer && !peer.destroyed) {
-                peer.disconnect();
-                peer.destroy();
-            }
-
-            // Recreate the peer connection for future calls
-            createPeer();
-        }
-
-        function createPeer() {
-            if (peer && !peer.destroyed) {
-                peer.disconnect();
-                peer.destroy();
-            }
-            peer = new Peer(generateRandomString(16));
-            setupPeerEvents();
-        }
-
-        function setupPeerEvents() {
-            peer.on('open', (id) => {
-                myPeerId = id;
-                document.getElementById('myPeerId').textContent = myPeerId;
-            });
-
-            peer.on('connection', (connection) => {
-                conn = connection;
-                setupConnection();
-            });
-
-            peer.on('call', async (call) => {
-                if (await requestMediaPermissions()) {
-                    try {
-                        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                        document.getElementById('localVideo').srcObject = localStream;
-                        call.answer(localStream);
-                        setupMediaConnection(call);
-                        document.getElementById('videoCallContainer').style.display = 'flex';
-                        document.getElementById('startCallBtn').style.display = 'none';
-                        displayMessage('Video call connected', 'system');
-                    } catch (err) {
-                        console.error('Failed to get local stream', err);
-                        showNotification('Failed to answer video call. Please check your camera and microphone.', 5000);
+            // Replace setInterval with a more battery-friendly approach
+            let lastCheckTime = Date.now();
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    const now = Date.now();
+                    if (now - lastCheckTime > 5000) {
+                        checkConnectionStatus();
+                        lastCheckTime = now;
                     }
+                }
+            });
+        });
+
+        peer.on('connection', (connection) => {
+            conn = connection;
+            setupConnection();
+            showChatInterface();
+            
+            if (isInitiator && !chatId) {
+                chatId = generateChatId();
+                updateUrlWithChatIdAndPeerId(chatId, myPeerId);
+                conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+            }
+            
+            log('Your friend has joined the chat!');
+            displayMessage('Your friend has joined the chat!', 'system');
+            
+            peer.on('call', (call) => {
+                if (confirm('Incoming video call. Do you want to answer?')) {
+                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                        .then((stream) => {
+                            localStream = stream;
+                            document.getElementById('localVideo').srcObject = stream;
+                            call.answer(stream);
+                            setupMediaConnection(call);
+                            document.getElementById('videoCallContainer').style.display = 'block';
+                            document.getElementById('startCallBtn').style.display = 'none';
+                            document.getElementById('endCallBtn').style.display = 'inline-block';
+                        })
+                        .catch((err) => {
+                            console.error('Failed to get local stream', err);
+                            alert('Failed to answer video call. Please check your camera and microphone permissions.');
+                        });
                 } else {
                     call.close();
                 }
             });
-
-            peer.on('error', (err) => {
-                console.error('Peer error:', err);
-                showNotification('An error occurred with the peer connection. Please refresh the page.', 5000);
-            });
-        }
-
-        // Call this function when the page loads
-        window.addEventListener('load', () => {
-            createPeer();
         });
-
-        // Update the connect function
-        function connect() {
-            const peerId = document.getElementById('peerIdInput').value;
-            if (peerId) {
-                conn = peer.connect(peerId);
-                setupConnection();
-            }
-        }
 
         function connectToPeer(peerId) {
             log(`Connecting to peer: ${peerId}`);
@@ -653,6 +613,45 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
+        // Add this function to end a video call
+        function endVideoCall(isInitiator = true) {
+            console.log('Ending video call');
+            
+            // Stop all tracks in the local stream
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    track.stop();
+                });
+                localStream = null;
+            }
+
+            // Close the media connection
+            if (mediaConnection) {
+                mediaConnection.close();
+                mediaConnection = null;
+            }
+
+            // Clear video elements
+            const localVideo = document.getElementById('localVideo');
+            const remoteVideo = document.getElementById('remoteVideo');
+            if (localVideo.srcObject) {
+                localVideo.srcObject = null;
+            }
+            if (remoteVideo.srcObject) {
+                remoteVideo.srcObject = null;
+            }
+
+            // Hide video call container and show start call button
+            document.getElementById('videoCallContainer').style.display = 'none';
+            document.getElementById('startCallBtn').style.display = 'inline-block';
+
+            if (isInitiator && conn) {
+                conn.send({ type: 'endCall' });
+            }
+            
+            displayMessage(isInitiator ? 'You ended the video call' : 'Your friend ended the video call', 'system');
+        }
+
         // Add this function to set up the media connection
         function setupMediaConnection(call) {
             mediaConnection = call;
@@ -694,6 +693,25 @@ This specification outlines the core functionality and design of the chat applic
                 return false;
             }
         }
+
+        peer.on('call', async (call) => {
+            if (await requestMediaPermissions()) {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    document.getElementById('localVideo').srcObject = localStream;
+                    call.answer(localStream);
+                    setupMediaConnection(call);
+                    document.getElementById('videoCallContainer').style.display = 'flex';
+                    document.getElementById('startCallBtn').style.display = 'none';
+                    displayMessage('Video call connected', 'system');
+                } catch (err) {
+                    console.error('Failed to get local stream', err);
+                    showNotification('Failed to answer video call. Please check your camera and microphone.', 5000);
+                }
+            } else {
+                call.close();
+            }
+        });
     </script>
  
 </body>
