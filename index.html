@@ -230,9 +230,8 @@ This specification outlines the core functionality and design of the chat applic
         <p id="loadingMessage">...</p>
         <div class="input-group mb-3">
             <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
-            <button id="generatePeerId" class="btn btn-primary">Generate ID</button>
+            <button id="copyLinkBtn" class="btn btn-success btn-round">Copy Chat Link</button>
         </div>
-        <button id="copyLinkBtn" class="btn btn-success btn-round" style="display: none;">Copy Chat Link</button>
         <p id="copyStatus" class="mt-2"></p>
         <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
             <h5>Debug Log:</h5>
@@ -294,15 +293,14 @@ This specification outlines the core functionality and design of the chat applic
         let remoteStream;
         let mediaConnection;
         let systemMessageCooldown = false;
+        let customPeerId = '';
 
-        function initializePeer(customId = null) {
-            if (peer) {
-                peer.destroy();
-            }
+        function initializePeer() {
+            const customId = document.getElementById('customPeerId').value.trim();
+            customPeerId = customId || generateRandomId();
             
-            const peerOptions = customId ? { id: customId } : {};
-            peer = new Peer(peerOptions);
-
+            peer = customId ? new Peer(customId) : new Peer();
+            
             peer.on('open', (id) => {
                 myPeerId = id;
                 document.getElementById('myId').textContent = id;
@@ -311,10 +309,6 @@ This specification outlines the core functionality and design of the chat applic
                 const peerId = urlParams.get('peerId');
                 
                 log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
-
-                document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-                document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                setupCopyLinkButton(id);
 
                 // Delay the connection attempt to ensure PeerJS is fully initialized
                 setTimeout(() => {
@@ -328,6 +322,9 @@ This specification outlines the core functionality and design of the chat applic
                     } else {
                         log('New chat as initiator');
                         isInitiator = true;
+                        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+                        document.getElementById('copyLinkBtn').style.display = 'inline-block';
+                        setupCopyLinkButton(id);
                     }
                 }, 1000); // 1 second delay
 
@@ -381,19 +378,9 @@ This specification outlines the core functionality and design of the chat applic
             });
         }
 
-        document.getElementById('generatePeerId').addEventListener('click', () => {
-            const customId = document.getElementById('customPeerId').value.trim();
-            initializePeer(customId || null);
-        });
-
-        document.getElementById('customPeerId').addEventListener('input', () => {
-            const customId = document.getElementById('customPeerId').value.trim();
-            if (customId) {
-                document.getElementById('generatePeerId').textContent = 'Use Custom ID';
-            } else {
-                document.getElementById('generatePeerId').textContent = 'Generate Random ID';
-            }
-        });
+        function generateRandomId() {
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        }
 
         function setupCopyLinkButton(id) {
             const copyLinkBtn = document.getElementById('copyLinkBtn');
@@ -401,7 +388,7 @@ This specification outlines the core functionality and design of the chat applic
 
             copyLinkBtn.addEventListener('click', () => {
                 const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('peerId', id);
+                currentUrl.searchParams.set('peerId', customPeerId || id);
                 const fullUrl = currentUrl.toString();
 
                 navigator.clipboard.writeText(fullUrl).then(() => {
@@ -416,8 +403,18 @@ This specification outlines the core functionality and design of the chat applic
             });
         }
 
-        // Initialize peer with random ID on page load
-        initializePeer();
+        // Initialize peer when the page loads
+        window.addEventListener('load', () => {
+            initializePeer();
+        });
+
+        // Re-initialize peer when custom ID changes
+        document.getElementById('customPeerId').addEventListener('change', () => {
+            if (peer) {
+                peer.destroy();
+            }
+            initializePeer();
+        });
 
         // Add this function to create and play sounds
         function createAndPlaySound(frequency, duration) {
@@ -597,7 +594,7 @@ This specification outlines the core functionality and design of the chat applic
         function updateUrlWithChatIdAndPeerId(chatId, peerId) {
             const url = new URL(window.location.href);
             url.searchParams.set('chatId', chatId);
-            url.searchParams.set('peerId', peerId);
+            url.searchParams.set('peerId', customPeerId || peerId);
             window.history.replaceState({}, '', url);
         }
 
