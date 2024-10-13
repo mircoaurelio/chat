@@ -164,7 +164,6 @@ This specification outlines the core functionality and design of the chat applic
         #messageInput {
             border-radius: 19px;
             border: 0;
-            margin-right: 60px;
         }
         .text-input {
             border-radius: 19px;
@@ -778,7 +777,7 @@ This specification outlines the core functionality and design of the chat applic
                 console.error('Failed to get media permissions:', err);
                 showNotification('Please grant camera and microphone permissions for video calls.', 5000);
                 return false;
-            }r
+            }
         }
 
         peer.on('call', async (call) => {
