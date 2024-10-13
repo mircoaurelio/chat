@@ -164,6 +164,7 @@ This specification outlines the core functionality and design of the chat applic
         #messageInput {
             border-radius: 19px;
             border: 0;
+            margin-right: 60px;
         }
         .text-input {
             border-radius: 19px;
@@ -286,13 +287,11 @@ This specification outlines the core functionality and design of the chat applic
 
         let peer;
         let conn;
-        let chatId;
         let myPeerId;
         let isInitiator = false;
         let localStream;
         let remoteStream;
         let mediaConnection;
-        let systemMessageCooldown = false;
         let customPeerId = '';
 
         function initializePeer() {
@@ -347,12 +346,6 @@ This specification outlines the core functionality and design of the chat applic
                 setupConnection();
                 showChatInterface();
                 
-                if (isInitiator && !chatId) {
-                    chatId = generateChatId();
-                    updateUrlWithChatIdAndPeerId(chatId, myPeerId);
-                    conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
-                }
-                
                 log('Your friend has joined the chat!');
                 displayMessage('Your friend has joined the chat!', 'system');
                 
@@ -388,12 +381,10 @@ This specification outlines the core functionality and design of the chat applic
             const copyStatus = document.getElementById('copyStatus');
 
             copyLinkBtn.addEventListener('click', () => {
-                const currentUrl = new URL(window.location.href);
-                currentUrl.search = ''; // Clear existing query parameters
-                currentUrl.searchParams.set('r', customPeerId || id);
-                const fullUrl = currentUrl.toString();
+                const shareWord = customPeerId || id;
+                const shareLink = `r=${shareWord}`;
 
-                navigator.clipboard.writeText(fullUrl).then(() => {
+                navigator.clipboard.writeText(shareLink).then(() => {
                     copyStatus.textContent = 'Link copied to clipboard!';
                     setTimeout(() => {
                         copyStatus.textContent = '';
@@ -500,18 +491,11 @@ This specification outlines the core functionality and design of the chat applic
                 log('Connected to peer');
                 displayMessage('Connected to peer', 'system');
                 showChatInterface();
-                
-                if (chatId && isInitiator) {
-                    log('Sending chat ID to peer');
-                    conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
-                }
             });
             
             conn.on('data', (data) => {
                 log(`Received data: ${JSON.stringify(data)}`);
-                if (data.type === 'chatId') {
-                    handleChatIdMessage(data.chatId, data.initiatorId);
-                } else if (data.type === 'prepareForCall') {
+                if (data.type === 'prepareForCall') {
                     displayMessage('Incoming video call...', 'system');
                 } else if (data.type === 'endCall') {
                     endVideoCall(false);
@@ -532,13 +516,6 @@ This specification outlines the core functionality and design of the chat applic
                 displayMessage('Connection error: ' + err.message, 'system');
                 showReconnectButton();
             });
-        }
-
-        function handleChatIdMessage(receivedChatId, initiatorId) {
-            if (!chatId) {
-                chatId = receivedChatId;
-                updateUrlWithChatIdAndPeerId(chatId, initiatorId);
-            }
         }
 
         function sendMessage() {
@@ -587,21 +564,6 @@ This specification outlines the core functionality and design of the chat applic
             document.getElementById('chatInterface').style.display = 'flex';
             document.getElementById('chatInterface').style.flexDirection = 'column';
             document.getElementById('shareInterface').style.display = 'none';
-        }
-
-        function generateChatId() {
-            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        }
-
-        function updateUrlWithChatIdAndPeerId(chatId, peerId) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('chatId', chatId);
-            if (isInitiator) {
-                url.searchParams.set('i', customPeerId || peerId);
-            } else {
-                url.searchParams.set('r', customPeerId || peerId);
-            }
-            window.history.replaceState({}, '', url);
         }
 
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
