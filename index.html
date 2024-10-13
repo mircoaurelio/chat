@@ -637,46 +637,29 @@ This specification outlines the core functionality and design of the chat applic
         document.getElementById('fileInput').addEventListener('change', handleFileSelect);
 
         // Add this function to start a video call
-        function startVideoCall() {
-            requestMediaPermissions()
-                .then((stream) => {
-                    if (stream) {
-                        initiateCall(stream);
-                    } else {
-                        showNotification('Failed to get media permissions. Please check your settings.', 5000);
-                    }
-                })
-                .catch((error) => {
-                    console.error('Error starting video call:', error);
-                    showNotification('An error occurred while starting the video call. Please try again.', 5000);
-                });
-        }
+        async function startVideoCall() {
+            if (!(await requestMediaPermissions())) {
+                return;
+            }
 
-        async function requestMediaPermissions() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                return stream;
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('videoCallContainer').style.display = 'flex';
+                document.getElementById('startCallBtn').style.display = 'none';
+
+                mediaConnection = peer.call(conn.peer, localStream);
+                setupMediaConnection(mediaConnection);
+
+                conn.send({ type: 'prepareForCall' });
+                displayMessage('Video call started', 'system');
             } catch (err) {
-                console.error('Failed to get media permissions:', err);
-                showNotification('Please grant camera and microphone permissions for video calls.', 5000);
-                return null;
+                console.error('Failed to start video call:', err);
+                showNotification('Failed to start video call. Please check your camera and microphone.', 5000);
             }
-        }
-
-        function initiateCall(stream) {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-            localStream = stream;
-            document.getElementById('localVideo').srcObject = localStream;
-            document.getElementById('videoCallContainer').style.display = 'flex';
-            document.getElementById('startCallBtn').style.display = 'none';
-
-            mediaConnection = peer.call(conn.peer, localStream);
-            setupMediaConnection(mediaConnection);
-
-            conn.send({ type: 'prepareForCall' });
-            displayMessage('Video call started', 'system');
         }
 
         // Add this function to end a video call
@@ -772,36 +755,27 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        // Update the peer.on('call') handler
-        peer.on('call', (call) => {
-            requestMediaPermissions()
-                .then((stream) => {
-                    if (stream) {
-                        answerCall(call, stream);
-                    } else {
-                        call.close();
-                        showNotification('Failed to answer call due to permission issues.', 5000);
+        peer.on('call', async (call) => {
+            if (await requestMediaPermissions()) {
+                try {
+                    if (localStream) {
+                        localStream.getTracks().forEach(track => track.stop());
                     }
-                })
-                .catch((error) => {
-                    console.error('Error answering call:', error);
-                    call.close();
-                    showNotification('An error occurred while answering the call. Please try again.', 5000);
-                });
-        });
-
-        function answerCall(call, stream) {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    document.getElementById('localVideo').srcObject = localStream;
+                    call.answer(localStream);
+                    setupMediaConnection(call);
+                    document.getElementById('videoCallContainer').style.display = 'flex';
+                    document.getElementById('startCallBtn').style.display = 'none';
+                    displayMessage('Video call connected', 'system');
+                } catch (err) {
+                    console.error('Failed to get local stream', err);
+                    showNotification('Failed to answer video call. Please check your camera and microphone.', 5000);
+                }
+            } else {
+                call.close();
             }
-            localStream = stream;
-            document.getElementById('localVideo').srcObject = localStream;
-            call.answer(localStream);
-            setupMediaConnection(call);
-            document.getElementById('videoCallContainer').style.display = 'flex';
-            document.getElementById('startCallBtn').style.display = 'none';
-            displayMessage('Video call connected', 'system');
-        }
+        });
 
         // Add this function to handle shareword input changes
         function handleSharewordChange() {
