@@ -1,4 +1,228 @@
+<!-- 
+This is a peer-to-peer (P2P) chat application that allows users to communicate directly with each other without the need for a central server. the application is not using a singnaling server because the link is shared via the URL. The application is built using HTML, JavaScript, and the PeerJS library for WebRTC-based peer-to-peer connections. It is designed to be anonymous and serverless, with a focus on simplicity and ease of use.
+Features
+Peer-to-Peer Connection: Utilizes WebRTC via PeerJS to establish direct connections between users.
+2. Anonymous Chat: Users do not need to register or log in. Each session is unique and temporary.
+3. One-Shot Communication: Designed for quick, temporary conversations without persistent data storage.
+4. Responsive Design: Uses Bootstrap for a responsive and mobile-friendly interface.
+Sound Notifications: Plays sounds for sent and received messages to enhance user experience.
+Copyable Chat Link: Users can easily share a link to invite others to join the chat.
+Reconnect Feature: Allows users to attempt reconnection if the connection is lost.
+Debug Log: Displays a log of events for debugging purposes.
+User Interface
+Share Interface: Initial screen where users can copy the chat link and view debug logs.
+Chat Interface: Main chat area with message input, chat history, and advertisement space.
+Key Components
+PeerJS: Handles the creation and management of peer-to-peer connections.
+Bootstrap: Provides styling and layout for a responsive design.
+Emoji Picker: Allows users to insert emojis into their messages (though not fully integrated in the provided code).
+Workflow
+Initialization:
+A new Peer object is created.
+The user's peer ID is generated and displayed.
+The application checks URL parameters to determine if the user is initiating a new chat or joining an existing one.
+2. Connection Handling:
+If joining an existing chat, the application attempts to connect to the specified peer ID.
+If initiating a new chat, the user is prompted to share their link.
+Messaging:
+Users can send messages by typing in the input field and pressing "Send" or hitting "Enter".
+Messages are displayed in the chat area with different styles for sent and received messages.
+4. Connection Management:
+The application checks the connection status and attempts to reconnect if the connection is lost.
+A "Reconnect" button is available for manual reconnection attempts.
+5. Sound Notifications:
+Plays a sound when a message is sent or received.
+6. URL Management:
+The URL is updated with chat and peer IDs to facilitate easy sharing and reconnection.
+Technical Details
+HTML/CSS: Defines the structure and style of the application.
+JavaScript: Handles the logic for peer connections, message sending/receiving, and UI updates.
+PeerJS: Provides the underlying WebRTC functionality for peer-to-peer communication.
+Potential Improvements
+Emoji Integration: Fully integrate the emoji picker for enhanced messaging.
+Error Handling: Improve error handling for connection issues.
+Security: Consider adding encryption for message content to enhance privacy.
+This specification outlines the core functionality and design of the chat application, providing a clear understanding of its capabilities and workflow. -->
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Chat</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+            background-color: #f0f2f5;
+        }
+        .chat-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: #fff;
+        }
+        .btn-primary{
+            background-color: orange;
+        }
+        .chat-header {
+            background-color: #075e54;
+            color: white;
+            padding: 10px 15px;
+        }
+        #chatArea {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background-color: #e5ddd5;
+        }
+        .message {
+            max-width: 80%;
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 7px;
+            position: relative;
+            word-wrap: break-word;
+        }
+        .message.friend {
+            background-color: #fff;
+            float: left;
+            clear: both;
+        }
+        .message.you {
+            background-color: #dcf8c6;
+            float: right;
+            clear: both;
+        }
+        .message.system {
+            background-color: #ffe6cc;
+            color: #856404;
+            text-align: center;
+            clear: both;
+            float: none;
+            margin-left: auto;
+            margin-right: auto;
+            max-width: 60%;
+            font-size: 0.9em;
+        }
+        .message-input {
+            background-color: #f0f0f0;
+            padding: 10px;
+        }
+        #copyLinkBtn {
+            background-color: #128c7e;
+            border-color: #128c7e;
+        }
+        #copyStatus {
+            font-size: 0.8em;
+            color: #4caf50;
+        }
+        #adBox {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 10px;
+            text-align: center;
+            font-style: italic;
+        }
+        #videoCallContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        #videoWrapper {
+            width: 100%;
+            height: calc(100% - 60px); /* Adjust for button height */
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        #remoteVideoWrapper {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            margin: auto;
+        }
+        #messageInput {
+            border-radius: 19px;
+            border: 0;
+        }
+        .text-input {
+            border-radius: 19px;
+            border: 0;
+        }
+        .btn-round{
+            border-radius: 22px;
+        }
+        #localVideoWrapper {
+            position: absolute;
+            width: 30%;
+            max-width: 200px;
+            min-width: 100px;
+            aspect-ratio: 3/4;
+            bottom: 20px;
+            right: 20px;
+            border: 2px solid white;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        #remoteVideo, #localVideo {
+            width: 100%;
+            height: 100%;
+           
+            object-fit: cover;
+        }
+          #remoteVideo{ 
+            width: auto; 
+            border-radius: 8px;
+        }
+        #endCallBtn {
+            margin-top: 10px;
+            z-index: 1001;
+        }
+        #photoinput, .input-group>:not(:first-child):not(.dropdown-menu):not(.valid-tooltip):not(.valid-feedback):not(.invalid-tooltip):not(.invalid-feedback){
+             background: transparent;
+             border: 0;
+             outline: none;
+             box-shadow: none;
+        }
+        .input-group>:not(:first-child):not(.dropdown-menu):not(.valid-tooltip):not(.valid-feedback):not(.invalid-tooltip):not(.invalid-feedback):focus {
+             outline: none;
+             box-shadow: none;
+        }
+        .send-message-btn {
+            position: absolute;
+            right: -1px;
+            border: 0;
+            border-radius: 20px !important;
+        }
+        .send-message-btn:hover {
+            background-color: #FF8C00; /* Dark orange */
+        }
+        .send-message-btn {
+            background-color: #f6b463; /* Dark orange */
+        }
+    </style>
+</head>
+<body>
     <div id="shareInterface" class="container text-center mt-3">
         <h2>P2P Chat</h2>
           <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
