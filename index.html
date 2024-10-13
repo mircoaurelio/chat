@@ -654,7 +654,7 @@ This specification outlines the core functionality and design of the chat applic
                 displayMessage('Video call started', 'system');
             } catch (err) {
                 console.error('Failed to start video call:', err);
-                showNotification('Failed to start video call. Please check your camera and microphone permissions.', 5000);
+                displayMessage('Failed to start video call. Please check your camera and microphone permissions.', 'system');
             }
         }
 
