@@ -185,6 +185,7 @@
         let localStream;
         let remoteStream;
         let mediaConnection;
+        let isInitiator = false;
 
         function log(message) {
             console.log(message);
@@ -237,6 +238,7 @@
         document.getElementById('startChatBtn').addEventListener('click', () => {
             const secretWord = document.getElementById('secretWordInput').value.trim();
             if (secretWord) {
+                isInitiator = confirm("Are you starting a new chat? Click OK for Yes, Cancel for No.");
                 initializePeer(secretWord);
             } else {
                 showNotification('Please enter a secret word', 3000);
@@ -256,25 +258,24 @@
                 document.getElementById('myId').textContent = id;
                 log(`Peer opened. My ID: ${id}`);
                 showChatInterface();
-                listenForConnection();
+                if (isInitiator) {
+                    log('Waiting for someone to join...');
+                    displayMessage('Waiting for someone to join...', 'system');
+                } else {
+                    connectToPeer(peerId);
+                }
             });
 
-            peer.on('error', (err) => {
-                log(`Peer error: ${err.type}`);
-                showNotification(`Connection error: ${err.type}. Please try again.`, 5000);
-            });
-        }
-
-        function listenForConnection() {
-            log('Listening for incoming connections...');
             peer.on('connection', (connection) => {
                 log('Incoming connection detected');
                 conn = connection;
                 setupConnection();
             });
 
-            // Also try to connect to a peer with the same ID
-            connectToPeer(myPeerId);
+            peer.on('error', (err) => {
+                log(`Peer error: ${err.type}`);
+                showNotification(`Connection error: ${err.type}. Please try again.`, 5000);
+            });
         }
 
         function connectToPeer(peerId) {
