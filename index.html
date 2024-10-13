@@ -1,49 +1,3 @@
-<!-- 
-This is a peer-to-peer (P2P) chat application that allows users to communicate directly with each other without the need for a central server. the application is not using a singnaling server because the link is shared via the URL. The application is built using HTML, JavaScript, and the PeerJS library for WebRTC-based peer-to-peer connections. It is designed to be anonymous and serverless, with a focus on simplicity and ease of use.
-Features
-Peer-to-Peer Connection: Utilizes WebRTC via PeerJS to establish direct connections between users.
-2. Anonymous Chat: Users do not need to register or log in. Each session is unique and temporary.
-3. One-Shot Communication: Designed for quick, temporary conversations without persistent data storage.
-4. Responsive Design: Uses Bootstrap for a responsive and mobile-friendly interface.
-Sound Notifications: Plays sounds for sent and received messages to enhance user experience.
-Copyable Chat Link: Users can easily share a link to invite others to join the chat.
-Reconnect Feature: Allows users to attempt reconnection if the connection is lost.
-Debug Log: Displays a log of events for debugging purposes.
-User Interface
-Share Interface: Initial screen where users can copy the chat link and view debug logs.
-Chat Interface: Main chat area with message input, chat history, and advertisement space.
-Key Components
-PeerJS: Handles the creation and management of peer-to-peer connections.
-Bootstrap: Provides styling and layout for a responsive design.
-Emoji Picker: Allows users to insert emojis into their messages (though not fully integrated in the provided code).
-Workflow
-Initialization:
-A new Peer object is created.
-The user's peer ID is generated and displayed.
-The application checks URL parameters to determine if the user is initiating a new chat or joining an existing one.
-2. Connection Handling:
-If joining an existing chat, the application attempts to connect to the specified peer ID.
-If initiating a new chat, the user is prompted to share their link.
-Messaging:
-Users can send messages by typing in the input field and pressing "Send" or hitting "Enter".
-Messages are displayed in the chat area with different styles for sent and received messages.
-4. Connection Management:
-The application checks the connection status and attempts to reconnect if the connection is lost.
-A "Reconnect" button is available for manual reconnection attempts.
-5. Sound Notifications:
-Plays a sound when a message is sent or received.
-6. URL Management:
-The URL is updated with chat and peer IDs to facilitate easy sharing and reconnection.
-Technical Details
-HTML/CSS: Defines the structure and style of the application.
-JavaScript: Handles the logic for peer connections, message sending/receiving, and UI updates.
-PeerJS: Provides the underlying WebRTC functionality for peer-to-peer communication.
-Potential Improvements
-Emoji Integration: Fully integrate the emoji picker for enhanced messaging.
-Error Handling: Improve error handling for connection issues.
-Security: Consider adding encryption for message content to enhance privacy.
-This specification outlines the core functionality and design of the chat application, providing a clear understanding of its capabilities and workflow. -->
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -52,6 +6,7 @@ This specification outlines the core functionality and design of the chat applic
     <title>P2P Chat</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@^1/index.js"></script>
     <style>
         html, body {
@@ -114,10 +69,6 @@ This specification outlines the core functionality and design of the chat applic
             background-color: #f0f0f0;
             padding: 10px;
         }
-        #copyLinkBtn {
-            background-color: #128c7e;
-            border-color: #128c7e;
-        }
         #copyStatus {
             font-size: 0.8em;
             color: #4caf50;
@@ -144,7 +95,7 @@ This specification outlines the core functionality and design of the chat applic
         }
         #videoWrapper {
             width: 100%;
-            height: calc(100% - 60px); /* Adjust for button height */
+            height: calc(100% - 60px);
             display: flex;
             flex-direction: column;
             position: relative;
@@ -173,10 +124,9 @@ This specification outlines the core functionality and design of the chat applic
         #remoteVideo, #localVideo {
             width: 100%;
             height: 100%;
-           
             object-fit: cover;
         }
-          #remoteVideo{ 
+        #remoteVideo{ 
             width: auto; 
             border-radius: 8px;
         }
@@ -187,16 +137,12 @@ This specification outlines the core functionality and design of the chat applic
     </style>
 </head>
 <body>
-    <div id="shareInterface" class="container text-center mt-3">
+    <div id="secretWordInterface" class="container text-center mt-3">
         <h2>P2P Chat</h2>
-          <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
-          
-        <p id="loadingMessage">...</p>
-        <button id="copyLinkBtn" class="btn btn-success" style="display: none;">Copy Chat Link</button>
-        <p id="copyStatus" class="mt-2"></p>
-        <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
-            <h5>Debug Log:</h5>
-        </div>
+        <p>Enter a secret word to start or join a chat:</p>
+        <input type="text" id="secretWordInput" class="form-control mb-2" placeholder="Enter secret word">
+        <button id="startChatBtn" class="btn btn-primary">Start/Join Chat</button>
+        <p id="secretWordStatus" class="mt-2"></p>
     </div>
     <div id="chatInterface" style="display: none; height: 100%;">
         <div class="chat-container">
@@ -233,42 +179,17 @@ This specification outlines the core functionality and design of the chat applic
     <div id="notificationArea" style="display: none;"></div>
 
     <script>
-        function log(message) {
-            const logArea = document.getElementById('logArea');
-            const logMessage = document.createElement('p');
-            logMessage.style.margin = '0';
-            logMessage.style.fontSize = '0.8em';
-            logMessage.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
-            logArea.appendChild(logMessage);
-            logArea.scrollTop = logArea.scrollHeight;
-            console.log(message); // Also log to console for desktop debugging
-        }
-
-
-        const peer = new Peer();
+        let peer;
         let conn;
-        let chatId;
         let myPeerId;
-        let isInitiator = false;
         let localStream;
         let remoteStream;
         let mediaConnection;
-        let systemMessageCooldown = false;
-        let sharedWord = '';
 
-        // Function to generate a hash from the shared word
-        function generateHash(word) {
-            let hash = 0;
-            for (let i = 0; i < word.length; i++) {
-                const char = word.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash; // Convert to 32-bit integer
-            }
-            return Math.abs(hash).toString(36);
+        function log(message) {
+            console.log(message);
         }
 
-
-        // Function to create and play sounds
         function createAndPlaySound(frequency, duration) {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
@@ -287,13 +208,11 @@ This specification outlines the core functionality and design of the chat applic
             oscillator.stop(audioContext.currentTime + duration);
         }
 
-
-        // Function to play sound
         function playSound(type) {
             if (type === 'send') {
-                createAndPlaySound(800, 0.1); // Higher pitch for sent messages
+                createAndPlaySound(800, 0.1);
             } else if (type === 'receive') {
-                createAndPlaySound(600, 0.1); // Lower pitch for received messages
+                createAndPlaySound(600, 0.1);
             }
         }
 
@@ -306,79 +225,64 @@ This specification outlines the core functionality and design of the chat applic
             }, duration);
         }
 
-        peer.on('open', (id) => {
-            myPeerId = id;
-            document.getElementById('myId').textContent = id;
-            const urlParams = new URLSearchParams(window.location.search);
-            chatId = urlParams.get('chatId');
-            sharedWord = urlParams.get('word');
-            
-            log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Shared Word: ${sharedWord}`);
+        function generatePeerId(secretWord) {
+            return CryptoJS.SHA256(secretWord).toString(CryptoJS.enc.Hex).substr(0, 16);
+        }
 
-            // Delay the connection attempt to ensure PeerJS is fully initialized
-            setTimeout(() => {
-                if (sharedWord) {
-                    log('Connecting to chat using shared word');
-                    connectToPeer(generateHash(sharedWord));
-                } else {
-                    log('New chat as initiator');
-                    isInitiator = true;
-                    document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-                    document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                    setupCopyLinkButton(id);
-                }
-            }, 1000); // 1 second delay
-
-            // Replace setInterval with a more battery-friendly approach
-            let lastCheckTime = Date.now();
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    const now = Date.now();
-                    if (now - lastCheckTime > 5000) {
-                        checkConnectionStatus();
-                        lastCheckTime = now;
-                    }
-                }
-            });
-        });
-
-
-        peer.on('connection', (connection) => {
-            conn = connection;
-            setupConnection();
-            showChatInterface();
-            
-            if (isInitiator && !chatId) {
-                chatId = generateChatId();
-                updateUrlWithChatIdAndWord(chatId, sharedWord);
-                conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+        document.getElementById('startChatBtn').addEventListener('click', () => {
+            const secretWord = document.getElementById('secretWordInput').value.trim();
+            if (secretWord) {
+                initializePeer(secretWord);
+            } else {
+                showNotification('Please enter a secret word', 3000);
             }
-            
-            log('Your friend has joined the chat!');
-            displayMessage('Your friend has joined the chat!', 'system');
-            
-            peer.on('call', (call) => {
-                if (confirm('Incoming video call. Do you want to answer?')) {
-                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                        .then((stream) => {
-                            localStream = stream;
-                            document.getElementById('localVideo').srcObject = stream;
-                            call.answer(stream);
-                            setupMediaConnection(call);
-                            document.getElementById('videoCallContainer').style.display = 'block';
-                            document.getElementById('startCallBtn').style.display = 'none';
-                            document.getElementById('endCallBtn').style.display = 'inline-block';
-                        })
-                        .catch((err) => {
-                            console.error('Failed to get local stream', err);
-                            alert('Failed to answer video call. Please check your camera and microphone permissions.');
-                        });
-                } else {
-                    call.close();
-                }
-            });
         });
 
+        function initializePeer(secretWord) {
+            const peerId = generatePeerId(secretWord);
+            peer = new Peer(peerId);
+
+            peer.on('open', (id) => {
+                myPeerId = id;
+                document.getElementById('myId').textContent = id;
+                log(`Peer opened. My ID: ${id}`);
+                showChatInterface();
+                connectToPeer(peerId);
+            });
+
+            peer.on('connection', (connection) => {
+                conn = connection;
+                setupConnection();
+                log('Your friend has joined the chat!');
+                displayMessage('Your friend has joined the chat!', 'system');
+                
+                peer.on('call', (call) => {
+                    if (confirm('Incoming video call. Do you want to answer?')) {
+                        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                            .then((stream) => {
+                                localStream = stream;
+                                document.getElementById('localVideo').srcObject = stream;
+                                call.answer(stream);
+                                setupMediaConnection(call);
+                                document.getElementById('videoCallContainer').style.display = 'block';
+                                document.getElementById('startCallBtn').style.display = 'none';
+                                document.getElementById('endCallBtn').style.display = 'inline-block';
+                            })
+                            .catch((err) => {
+                                console.error('Failed to get local stream', err);
+                                alert('Failed to answer video call. Please check your camera and microphone permissions.');
+                            });
+                    } else {
+                        call.close();
+                    }
+                });
+            });
+
+            peer.on('error', (err) => {
+                log(`Peer error: ${err.type}`);
+                showNotification(`Connection error: ${err.type}. Please try again.`, 5000);
+            });
+        }
 
         function connectToPeer(peerId) {
             log(`Connecting to peer: ${peerId}`);
@@ -387,58 +291,17 @@ This specification outlines the core functionality and design of the chat applic
             }
             conn = peer.connect(peerId, { reliable: true });
             setupConnection();
-            
-            // Enhanced retry mechanism
-            let retryCount = 0;
-            const maxRetries = 100; // Increased number of retries
-            const retryInterval = 1000; // Reduced interval to 1 second
-
-            function retryConnection() {
-                if (retryCount < maxRetries) {
-                    retryCount++;
-                    log(`Retry attempt ${retryCount}`);
-                    conn = peer.connect(peerId, { reliable: true });
-                    setupConnection();
-                    setTimeout(() => {
-                        if (!conn.open) {
-                            retryConnection();
-                        }
-                    }, retryInterval);
-                } else {
-                    log('Max retries reached. Unable to connect.');
-                    displayMessage('Unable to connect. Please try again later.', 'system');
-                    showReconnectButton();
-                }
-            }
-
-            // Start the retry process if the initial connection fails
-            setTimeout(() => {
-                if (!conn.open) {
-                    retryConnection();
-                }
-            }, retryInterval);
         }
 
         function setupConnection() {
-            hideReconnectButton();
-            
             conn.on('open', () => {
                 log('Connected to peer');
                 displayMessage('Connected to peer', 'system');
-                showChatInterface();
-                
-                if (!chatId) {
-                    chatId = generateChatId();
-                    updateUrlWithChatIdAndWord(chatId, sharedWord);
-                }
-                conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
             });
             
             conn.on('data', (data) => {
                 log(`Received data: ${JSON.stringify(data)}`);
-                if (data.type === 'chatId') {
-                    handleChatIdMessage(data.chatId, data.initiatorId);
-                } else if (data.type === 'prepareForCall') {
+                if (data.type === 'prepareForCall') {
                     displayMessage('Incoming video call...', 'system');
                 } else if (data.type === 'endCall') {
                     endVideoCall(false);
@@ -451,21 +314,12 @@ This specification outlines the core functionality and design of the chat applic
             conn.on('close', () => {
                 log('Connection closed');
                 displayMessage('Your friend has disconnected', 'system');
-                showReconnectButton();
             });
 
             conn.on('error', (err) => {
                 log(`Connection error: ${err.message}`);
                 displayMessage('Connection error: ' + err.message, 'system');
-                showReconnectButton();
             });
-        }
-
-        function handleChatIdMessage(receivedChatId, initiatorId) {
-            if (!chatId) {
-                chatId = receivedChatId;
-                updateUrlWithChatIdAndWord(chatId, sharedWord);
-            }
         }
 
         function sendMessage() {
@@ -485,7 +339,6 @@ This specification outlines the core functionality and design of the chat applic
             messageElement.className = `message ${className}`;
             
             if (typeof message === 'string') {
-                // Handle system messages
                 messageElement.textContent = message;
                 messageElement.classList.add('system');
                 
@@ -495,7 +348,7 @@ This specification outlines the core functionality and design of the chat applic
                     setTimeout(() => {
                         chatArea.removeChild(messageElement);
                     }, 1000);
-                }, 20000); // 20 seconds before fading
+                }, 20000);
             } else if (message.type === 'text') {
                 messageElement.textContent = message.content;
             } else if (message.type === 'image') {
@@ -510,74 +363,10 @@ This specification outlines the core functionality and design of the chat applic
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        function setupCopyLinkButton(id) {
-            const copyLinkBtn = document.getElementById('copyLinkBtn');
-            const copyStatus = document.getElementById('copyStatus');
-
-            // Add input for shared word
-            const wordInput = document.createElement('input');
-            wordInput.type = 'text';
-            wordInput.placeholder = 'Enter shared word';
-            wordInput.id = 'sharedWordInput';
-            copyLinkBtn.parentNode.insertBefore(wordInput, copyLinkBtn);
-
-            copyLinkBtn.addEventListener('click', () => {
-                const enteredWord = wordInput.value.trim();
-                if (!enteredWord) {
-                    copyStatus.textContent = 'Please enter a shared word first.';
-                    return;
-                }
-
-                sharedWord = enteredWord;
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('word', sharedWord);
-                const fullUrl = currentUrl.toString();
-
-                navigator.clipboard.writeText(fullUrl).then(() => {
-                    copyStatus.textContent = 'Link copied to clipboard!';
-                    setTimeout(() => {
-                        copyStatus.textContent = '';
-                    }, 3000);
-                }, (err) => {
-                    console.error('Could not copy text: ', err);
-                    copyStatus.textContent = 'Failed to copy link. Please try again.';
-                });
-            });
-        }
-
         function showChatInterface() {
             document.getElementById('chatInterface').style.display = 'flex';
             document.getElementById('chatInterface').style.flexDirection = 'column';
-            document.getElementById('shareInterface').style.display = 'none';
-        }
-
-        function generateChatId() {
-            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        }
-
-        function updateUrlWithChatIdAndWord(chatId, word) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('chatId', chatId);
-            url.searchParams.set('word', word);
-            window.history.replaceState({}, '', url);
-            
-            // Update the copy link button with the new URL
-            const copyLinkBtn = document.getElementById('copyLinkBtn');
-            if (copyLinkBtn) {
-                copyLinkBtn.addEventListener('click', () => {
-                    navigator.clipboard.writeText(url.toString()).then(() => {
-                        const copyStatus = document.getElementById('copyStatus');
-                        copyStatus.textContent = 'Link copied to clipboard!';
-                        setTimeout(() => {
-                            copyStatus.textContent = '';
-                        }, 3000);
-                    }, (err) => {
-                        console.error('Could not copy text: ', err);
-                        const copyStatus = document.getElementById('copyStatus');
-                        copyStatus.textContent = 'Failed to copy link. Please try again.';
-                    });
-                });
-            }
+            document.getElementById('secretWordInterface').style.display = 'none';
         }
 
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
@@ -586,38 +375,6 @@ This specification outlines the core functionality and design of the chat applic
             }
         });
 
-        function checkConnectionStatus() {
-            log('Checking connection status');
-            if (conn) {
-                log(`Connection state: ${conn.open ? 'open' : 'closed'}`);
-            } else {
-                log('No connection established');
-            }
-            
-            if (conn && !conn.open) {
-                log('Connection lost');
-                displayMessage('Connection lost. Attempting to reconnect...', 'system');
-                if (chatId) {
-                    connectToPeer(generateHash(sharedWord));
-                }
-            }
-        }
-
-        function showReconnectButton() {
-            document.getElementById('reconnectBtn').style.display = 'inline-block';
-        }
-
-        function hideReconnectButton() {
-            document.getElementById('reconnectBtn').style.display = 'none';
-        }
-
-        document.getElementById('reconnectBtn').addEventListener('click', () => {
-            if (sharedWord) {
-                connectToPeer(generateHash(sharedWord));
-            }
-        });
-
-        // Add this function to handle file selection
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (file && file.type.startsWith('image/')) {
@@ -634,10 +391,8 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        // Add event listener for file input
         document.getElementById('fileInput').addEventListener('change', handleFileSelect);
 
-        // Add this function to start a video call
         async function startVideoCall() {
             if (!(await requestMediaPermissions())) {
                 return;
@@ -663,11 +418,9 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        // Add this function to end a video call
         function endVideoCall(isInitiator = true) {
             console.log('Ending video call');
             
-            // Stop all tracks in the local stream
             if (localStream) {
                 localStream.getTracks().forEach(track => {
                     track.stop();
@@ -675,7 +428,6 @@ This specification outlines the core functionality and design of the chat applic
                 localStream = null;
             }
 
-            // Stop all tracks in the remote stream
             if (remoteStream) {
                 remoteStream.getTracks().forEach(track => {
                     track.stop();
@@ -683,13 +435,11 @@ This specification outlines the core functionality and design of the chat applic
                 remoteStream = null;
             }
 
-            // Close the media connection
             if (mediaConnection) {
                 mediaConnection.close();
                 mediaConnection = null;
             }
 
-            // Clear video elements
             const localVideo = document.getElementById('localVideo');
             const remoteVideo = document.getElementById('remoteVideo');
             if (localVideo.srcObject) {
@@ -703,7 +453,6 @@ This specification outlines the core functionality and design of the chat applic
                 remoteVideo.srcObject = null;
             }
 
-            // Hide video call container and show start call button
             document.getElementById('videoCallContainer').style.display = 'none';
             document.getElementById('startCallBtn').style.display = 'inline-block';
 
@@ -714,8 +463,6 @@ This specification outlines the core functionality and design of the chat applic
             displayMessage(isInitiator ? 'You ended the video call' : 'Your friend ended the video call', 'system');
         }
 
-
-        // Add this function to set up the media connection
         function setupMediaConnection(call) {
             mediaConnection = call;
 
@@ -742,7 +489,6 @@ This specification outlines the core functionality and design of the chat applic
             });
         }
 
-        // Add event listeners for video call buttons
         document.getElementById('startCallBtn').addEventListener('click', startVideoCall);
         document.getElementById('endCallBtn').addEventListener('click', () => endVideoCall(true));
 
@@ -757,27 +503,6 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        peer.on('call', async (call) => {
-            if (await requestMediaPermissions()) {
-                try {
-                    if (localStream) {
-                        localStream.getTracks().forEach(track => track.stop());
-                    }
-                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    document.getElementById('localVideo').srcObject = localStream;
-                    call.answer(localStream);
-                    setupMediaConnection(call);
-                    document.getElementById('videoCallContainer').style.display = 'flex';
-                    document.getElementById('startCallBtn').style.display = 'none';
-                    displayMessage('Video call connected', 'system');
-                } catch (err) {
-                    console.error('Failed to get local stream', err);
-                    showNotification('Failed to answer video call. Please check your camera and microphone.', 5000);
-                }
-            } else {
-                call.close();
-            }
-        });
     </script>
  
 </body>
