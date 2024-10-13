@@ -722,6 +722,54 @@ This specification outlines the core functionality and design of the chat applic
                 call.close();
             }
         });
+
+        function stopAllTracks(stream) {
+            if (stream) {
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                });
+            }
+        }
+
+        function endVideoCall(isInitiator = true) {
+            console.log('Ending video call');
+            
+            // Stop all tracks in the local stream
+            stopAllTracks(localStream);
+            localStream = null;
+
+            // Stop all tracks in the remote stream
+            stopAllTracks(remoteStream);
+            remoteStream = null;
+
+            // Close the media connection
+            if (mediaConnection) {
+                mediaConnection.close();
+                mediaConnection = null;
+            }
+
+            // Clear video elements
+            const localVideo = document.getElementById('localVideo');
+            const remoteVideo = document.getElementById('remoteVideo');
+            if (localVideo.srcObject) {
+                localVideo.srcObject.getTracks().forEach(track => track.stop());
+                localVideo.srcObject = null;
+            }
+            if (remoteVideo.srcObject) {
+                remoteVideo.srcObject.getTracks().forEach(track => track.stop());
+                remoteVideo.srcObject = null;
+            }
+
+            // Hide video call container and show start call button
+            document.getElementById('videoCallContainer').style.display = 'none';
+            document.getElementById('startCallBtn').style.display = 'inline-block';
+
+            if (isInitiator && conn) {
+                conn.send({ type: 'endCall' });
+            }
+            
+            displayMessage(isInitiator ? 'You ended the video call' : 'Your friend ended the video call', 'system');
+        }
     </script>
  
 </body>
