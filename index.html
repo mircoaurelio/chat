@@ -235,10 +235,27 @@
             return CryptoJS.SHA256(secretWord).toString(CryptoJS.enc.Hex).substr(0, 16);
         }
 
+        function getUrlParameter(name) {
+            name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+            var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+            var results = regex.exec(location.search);
+            return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
+        }
+
+        document.addEventListener('DOMContentLoaded', (event) => {
+            const role = getUrlParameter('role');
+            const secretWord = getUrlParameter('secret');
+            if (role === 'joiner' && secretWord) {
+                document.getElementById('secretWordInput').value = secretWord;
+                isInitiator = false;
+                initializePeer(secretWord);
+            }
+        });
+
         document.getElementById('startChatBtn').addEventListener('click', () => {
             const secretWord = document.getElementById('secretWordInput').value.trim();
             if (secretWord) {
-                isInitiator = confirm("Are you starting a new chat? Click OK for Yes, Cancel for No.");
+                isInitiator = true;
                 initializePeer(secretWord);
             } else {
                 showNotification('Please enter a secret word', 3000);
@@ -261,6 +278,7 @@
                 if (isInitiator) {
                     log('Waiting for someone to join...');
                     displayMessage('Waiting for someone to join...', 'system');
+                    showShareLink(secretWord);
                 } else {
                     connectToPeer(peerId);
                 }
@@ -276,6 +294,24 @@
                 log(`Peer error: ${err.type}`);
                 showNotification(`Connection error: ${err.type}. Please try again.`, 5000);
             });
+        }
+
+        function showShareLink(secretWord) {
+            const shareLink = `${window.location.origin}${window.location.pathname}?role=joiner&secret=${encodeURIComponent(secretWord)}`;
+            const shareLinkElement = document.createElement('div');
+            shareLinkElement.innerHTML = `
+                <p>Share this link with your friend to join the chat:</p>
+                <input type="text" value="${shareLink}" readonly style="width: 100%;">
+                <button onclick="copyShareLink()">Copy Link</button>
+            `;
+            document.getElementById('chatInterface').prepend(shareLinkElement);
+        }
+
+        function copyShareLink() {
+            const linkInput = document.querySelector('#chatInterface input[readonly]');
+            linkInput.select();
+            document.execCommand('copy');
+            showNotification('Link copied to clipboard!', 3000);
         }
 
         function connectToPeer(peerId) {
