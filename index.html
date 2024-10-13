@@ -353,24 +353,7 @@ This specification outlines the core functionality and design of the chat applic
                 
                 peer.on('call', (call) => {
                     displayMessage('Incoming video call...', 'system');
-                    if (confirm('Incoming video call. Do you want to answer?')) {
-                        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                            .then((stream) => {
-                                localStream = stream;
-                                document.getElementById('localVideo').srcObject = stream;
-                                call.answer(stream);
-                                setupMediaConnection(call);
-                                document.getElementById('videoCallContainer').style.display = 'flex';
-                                document.getElementById('startCallBtn').style.display = 'none';
-                                document.getElementById('endCallBtn').style.display = 'inline-block';
-                            })
-                            .catch((err) => {
-                                console.error('Failed to get local stream', err);
-                                displayMessage('Failed to answer video call. Please check your camera and microphone permissions.', 'system');
-                            });
-                    } else {
-                        call.close();
-                    }
+                    showIncomingCallUI(call);
                 });
             });
         }
@@ -787,7 +770,22 @@ This specification outlines the core functionality and design of the chat applic
             const answerBtn = document.createElement('button');
             answerBtn.textContent = 'Answer Call';
             answerBtn.className = 'btn btn-success';
-            answerBtn.onclick = () => answerCall(call);
+            answerBtn.onclick = async () => {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    document.getElementById('localVideo').srcObject = localStream;
+                    call.answer(localStream);
+                    setupMediaConnection(call);
+                    document.getElementById('videoCallContainer').style.display = 'flex';
+                    document.getElementById('startCallBtn').style.display = 'none';
+                    document.getElementById('endCallBtn').style.display = 'inline-block';
+                    removeIncomingCallUI();
+                } catch (err) {
+                    console.error('Failed to get local stream', err);
+                    displayMessage('Failed to access camera and microphone. Please check your permissions.', 'system');
+                    call.close();
+                }
+            };
 
             const rejectBtn = document.createElement('button');
             rejectBtn.textContent = 'Reject Call';
@@ -809,15 +807,6 @@ This specification outlines the core functionality and design of the chat applic
             callUI.appendChild(rejectBtn);
 
             document.body.appendChild(callUI);
-        }
-
-        function answerCall(call) {
-            call.answer(localStream);
-            setupMediaConnection(call);
-            document.getElementById('videoCallContainer').style.display = 'flex';
-            document.getElementById('startCallBtn').style.display = 'none';
-            document.getElementById('endCallBtn').style.display = 'inline-block';
-            removeIncomingCallUI();
         }
 
         function rejectCall(call) {
