@@ -296,7 +296,15 @@ This specification outlines the core functionality and design of the chat applic
         let customPeerId = '';
 
         function initializePeer() {
-            const customId = document.getElementById('customPeerId').value.trim();
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlWord = urlParams.get('i');
+            const customIdInput = document.getElementById('customPeerId');
+            
+            if (urlWord) {
+                customIdInput.value = urlWord;
+            }
+            
+            const customId = customIdInput.value.trim();
             customPeerId = customId || generateRandomId();
             
             peer = customId ? new Peer(customId) : new Peer();
@@ -304,7 +312,6 @@ This specification outlines the core functionality and design of the chat applic
             peer.on('open', (id) => {
                 myPeerId = id;
                 document.getElementById('myId').textContent = id;
-                const urlParams = new URLSearchParams(window.location.search);
                 chatId = urlParams.get('chatId');
                 const peerId = urlParams.get('peerId');
                 
@@ -388,7 +395,11 @@ This specification outlines the core functionality and design of the chat applic
 
             copyLinkBtn.addEventListener('click', () => {
                 const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('peerId', customPeerId || id);
+                if (customPeerId) {
+                    currentUrl.searchParams.set('i', customPeerId);
+                } else {
+                    currentUrl.searchParams.set('peerId', id);
+                }
                 const fullUrl = currentUrl.toString();
 
                 navigator.clipboard.writeText(fullUrl).then(() => {
@@ -594,7 +605,11 @@ This specification outlines the core functionality and design of the chat applic
         function updateUrlWithChatIdAndPeerId(chatId, peerId) {
             const url = new URL(window.location.href);
             url.searchParams.set('chatId', chatId);
-            url.searchParams.set('peerId', customPeerId || peerId);
+            if (customPeerId) {
+                url.searchParams.set('i', customPeerId);
+            } else {
+                url.searchParams.set('peerId', peerId);
+            }
             window.history.replaceState({}, '', url);
         }
 
