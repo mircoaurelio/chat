@@ -647,8 +647,8 @@ This specification outlines the core functionality and design of the chat applic
                     }
                 })
                 .catch((error) => {
-                    console.error('Error in startVideoCall:', error);
-                    showNotification('An error occurred while starting the call. Please try again.', 5000);
+                    console.error('Error starting video call:', error);
+                    showNotification('An error occurred while starting the video call. Please try again.', 5000);
                 });
         }
 
@@ -672,14 +672,11 @@ This specification outlines the core functionality and design of the chat applic
             document.getElementById('videoCallContainer').style.display = 'flex';
             document.getElementById('startCallBtn').style.display = 'none';
 
-            if (conn && conn.open) {
-                mediaConnection = peer.call(conn.peer, localStream);
-                setupMediaConnection(mediaConnection);
-                conn.send({ type: 'prepareForCall' });
-                displayMessage('Initiating video call...', 'system');
-            } else {
-                showNotification('No active connection. Please ensure you are connected to a peer.', 5000);
-            }
+            mediaConnection = peer.call(conn.peer, localStream);
+            setupMediaConnection(mediaConnection);
+
+            conn.send({ type: 'prepareForCall' });
+            displayMessage('Video call started', 'system');
         }
 
         // Add this function to end a video call
@@ -777,26 +774,20 @@ This specification outlines the core functionality and design of the chat applic
 
         // Update the peer.on('call') handler
         peer.on('call', (call) => {
-            displayMessage('Incoming video call...', 'system');
-            if (confirm('Incoming video call. Do you want to answer?')) {
-                requestMediaPermissions()
-                    .then((stream) => {
-                        if (stream) {
-                            answerCall(call, stream);
-                        } else {
-                            call.close();
-                            showNotification('Failed to get media permissions. Call ended.', 5000);
-                        }
-                    })
-                    .catch((error) => {
-                        console.error('Error in answering call:', error);
+            requestMediaPermissions()
+                .then((stream) => {
+                    if (stream) {
+                        answerCall(call, stream);
+                    } else {
                         call.close();
-                        showNotification('An error occurred while answering the call.', 5000);
-                    });
-            } else {
-                call.close();
-                displayMessage('Video call declined', 'system');
-            }
+                        showNotification('Failed to answer call due to permission issues.', 5000);
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error answering call:', error);
+                    call.close();
+                    showNotification('An error occurred while answering the call. Please try again.', 5000);
+                });
         });
 
         function answerCall(call, stream) {
