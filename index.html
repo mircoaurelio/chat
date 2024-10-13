@@ -353,7 +353,7 @@ This specification outlines the core functionality and design of the chat applic
                 
                 peer.on('call', (call) => {
                     displayMessage('Incoming video call...', 'system');
-                    handleIncomingCall(call);
+                    showIncomingCallUI(call);
                 });
             });
         }
@@ -736,8 +736,23 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         peer.on('call', async (call) => {
-            displayMessage('Incoming video call...', 'system');
-            handleIncomingCall(call);
+            try {
+                // Directly request media permissions
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                
+                // Answer the call with the obtained stream
+                call.answer(localStream);
+                setupMediaConnection(call);
+                document.getElementById('videoCallContainer').style.display = 'flex';
+                document.getElementById('startCallBtn').style.display = 'none';
+                document.getElementById('endCallBtn').style.display = 'inline-block';
+                displayMessage('Video call connected', 'system');
+            } catch (err) {
+                console.error('Failed to get local stream', err);
+                displayMessage('Failed to access camera and microphone. Please check your permissions.', 'system');
+                call.close();
+            }
         });
 
         // Add this function to handle shareword input changes
@@ -755,9 +770,12 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        async function handleIncomingCall(call) {
-            const userResponse = confirm('Incoming video call. Do you want to answer?');
-            if (userResponse) {
+        // Add these new functions
+        function showIncomingCallUI(call) {
+            const answerBtn = document.createElement('button');
+            answerBtn.textContent = 'Answer Call';
+            answerBtn.className = 'btn btn-success';
+            answerBtn.onclick = async () => {
                 try {
                     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                     document.getElementById('localVideo').srcObject = localStream;
@@ -766,14 +784,46 @@ This specification outlines the core functionality and design of the chat applic
                     document.getElementById('videoCallContainer').style.display = 'flex';
                     document.getElementById('startCallBtn').style.display = 'none';
                     document.getElementById('endCallBtn').style.display = 'inline-block';
+                    removeIncomingCallUI();
                 } catch (err) {
                     console.error('Failed to get local stream', err);
                     displayMessage('Failed to access camera and microphone. Please check your permissions.', 'system');
                     call.close();
                 }
-            } else {
-                call.close();
-                displayMessage('Video call rejected', 'system');
+            };
+
+            const rejectBtn = document.createElement('button');
+            rejectBtn.textContent = 'Reject Call';
+            rejectBtn.className = 'btn btn-danger';
+            rejectBtn.onclick = () => rejectCall(call);
+
+            const callUI = document.createElement('div');
+            callUI.id = 'incomingCallUI';
+            callUI.style.position = 'fixed';
+            callUI.style.top = '50%';
+            callUI.style.left = '50%';
+            callUI.style.transform = 'translate(-50%, -50%)';
+            callUI.style.backgroundColor = 'white';
+            callUI.style.padding = '20px';
+            callUI.style.borderRadius = '10px';
+            callUI.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+            callUI.style.zIndex = '1000';
+            callUI.appendChild(answerBtn);
+            callUI.appendChild(rejectBtn);
+
+            document.body.appendChild(callUI);
+        }
+
+        function rejectCall(call) {
+            call.close();
+            removeIncomingCallUI();
+            displayMessage('Video call rejected', 'system');
+        }
+
+        function removeIncomingCallUI() {
+            const callUI = document.getElementById('incomingCallUI');
+            if (callUI) {
+                callUI.remove();
             }
         }
     </script>
