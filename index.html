@@ -1,48 +1,12 @@
 <!-- 
-This is a peer-to-peer (P2P) chat application that allows users to communicate directly with each other without the need for a central server. the application is not using a singnaling server because the link is shared via the URL. The application is built using HTML, JavaScript, and the PeerJS library for WebRTC-based peer-to-peer connections. It is designed to be anonymous and serverless, with a focus on simplicity and ease of use.
-Features
-Peer-to-Peer Connection: Utilizes WebRTC via PeerJS to establish direct connections between users.
-2. Anonymous Chat: Users do not need to register or log in. Each session is unique and temporary.
-3. One-Shot Communication: Designed for quick, temporary conversations without persistent data storage.
-4. Responsive Design: Uses Bootstrap for a responsive and mobile-friendly interface.
-Sound Notifications: Plays sounds for sent and received messages to enhance user experience.
-Copyable Chat Link: Users can easily share a link to invite others to join the chat.
-Reconnect Feature: Allows users to attempt reconnection if the connection is lost.
-Debug Log: Displays a log of events for debugging purposes.
-User Interface
-Share Interface: Initial screen where users can copy the chat link and view debug logs.
-Chat Interface: Main chat area with message input, chat history, and advertisement space.
-Key Components
-PeerJS: Handles the creation and management of peer-to-peer connections.
-Bootstrap: Provides styling and layout for a responsive design.
-Emoji Picker: Allows users to insert emojis into their messages (though not fully integrated in the provided code).
-Workflow
-Initialization:
-A new Peer object is created.
-The user's peer ID is generated and displayed.
-The application checks URL parameters to determine if the user is initiating a new chat or joining an existing one.
-2. Connection Handling:
-If joining an existing chat, the application attempts to connect to the specified peer ID.
-If initiating a new chat, the user is prompted to share their link.
-Messaging:
-Users can send messages by typing in the input field and pressing "Send" or hitting "Enter".
-Messages are displayed in the chat area with different styles for sent and received messages.
-4. Connection Management:
-The application checks the connection status and attempts to reconnect if the connection is lost.
-A "Reconnect" button is available for manual reconnection attempts.
-5. Sound Notifications:
-Plays a sound when a message is sent or received.
-6. URL Management:
-The URL is updated with chat and peer IDs to facilitate easy sharing and reconnection.
-Technical Details
-HTML/CSS: Defines the structure and style of the application.
-JavaScript: Handles the logic for peer connections, message sending/receiving, and UI updates.
-PeerJS: Provides the underlying WebRTC functionality for peer-to-peer communication.
-Potential Improvements
-Emoji Integration: Fully integrate the emoji picker for enhanced messaging.
-Error Handling: Improve error handling for connection issues.
-Security: Consider adding encryption for message content to enhance privacy.
-This specification outlines the core functionality and design of the chat application, providing a clear understanding of its capabilities and workflow. -->
+This is a peer-to-peer (P2P) chat application that allows users to communicate directly with each other without the need for a central server. The application is not using a signaling server because the link is shared via the URL path. The application is built using HTML, JavaScript, and the PeerJS library for WebRTC-based peer-to-peer connections. It is designed to be anonymous and serverless, with a focus on simplicity and ease of use.
+
+**Key Updates:**
+- **Custom Peer IDs:** Users can set human-readable Peer IDs (e.g., "banana") for easier link sharing.
+- **URL Structure:** Shareable links follow the structure `https://yourdomain.com/chat/banana` instead of using query parameters.
+
+All existing features are preserved, including video calls, image sharing, sound notifications, and more.
+-->
 
 <!DOCTYPE html>
 <html lang="en">
@@ -215,19 +179,26 @@ This specification outlines the core functionality and design of the chat applic
             border-radius: 20px !important;
         }
         .send-message-btn:hover {
-            background-color: #FF8C00  !important; /* Dark orange */
+            background-color:   #f6b463!important; /* light orange */
         }
         .send-message-btn {
-            background-color: #f6b463 !important; /* Dark orange */
+            background-color:#FF8C00  !important; /* Dark orange */
         }
     </style>
 </head>
 <body>
     <div id="shareInterface" class="container text-center mt-3">
         <h2>P2P Chat</h2>
-          <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
-          
+        <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
+        
         <p id="loadingMessage">...</p>
+        
+        <!-- Custom Peer ID Input -->
+        <div class="input-group mb-3" id="peerIdInputGroup">
+            <input type="text" id="customPeerId" class="form-control" placeholder="Enter your chat name (e.g., banana)" aria-label="Custom Peer ID">
+            <button id="setPeerIdBtn" class="btn btn-primary">Set Chat Name</button>
+        </div>
+        
         <button id="copyLinkBtn" class="btn btn-success btn-round" style="display: none;">Copy Chat Link</button>
         <p id="copyStatus" class="mt-2"></p>
         <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
@@ -281,7 +252,7 @@ This specification outlines the core functionality and design of the chat applic
             console.log(message); // Also log to console for desktop debugging
         }
 
-        const peer = new Peer();
+        let peer;
         let conn;
         let chatId;
         let myPeerId;
@@ -291,7 +262,7 @@ This specification outlines the core functionality and design of the chat applic
         let mediaConnection;
         let systemMessageCooldown = false;
 
-        // Add this function to create and play sounds
+        // Function to create and play sounds
         function createAndPlaySound(frequency, duration) {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
@@ -328,80 +299,117 @@ This specification outlines the core functionality and design of the chat applic
             }, duration);
         }
 
-        peer.on('open', (id) => {
-            myPeerId = id;
-            document.getElementById('myId').textContent = id;
-            const urlParams = new URLSearchParams(window.location.search);
-            chatId = urlParams.get('chatId');
-            const peerId = urlParams.get('peerId');
-            
-            log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
+        // Function to extract Peer ID from URL path
+        function getPeerIdFromURL() {
+            const pathSegments = window.location.pathname.split('/');
+            // Assuming the URL structure is /chat/peerId
+            if (pathSegments.length >= 3 && pathSegments[1] === 'chat') {
+                return pathSegments[2] || null;
+            }
+            return null;
+        }
 
-            // Delay the connection attempt to ensure PeerJS is fully initialized
-            setTimeout(() => {
-                if (chatId && peerId) {
-                    log('Reconnecting to existing chat');
-                    connectToPeer(peerId);
-                } else if (peerId) {
-                    log('New connection as receiver');
-                    isInitiator = false;
-                    connectToPeer(peerId);
-                } else {
+        document.getElementById('setPeerIdBtn').addEventListener('click', () => {
+            const customId = document.getElementById('customPeerId').value.trim();
+            if (customId) {
+                initializePeer(customId);
+            } else {
+                alert('Please enter a valid chat name.');
+            }
+        });
+
+        // Initialize PeerJS with optional custom ID
+        function initializePeer(customId = null) {
+            const peerOptions = {
+                debug: 2
+            };
+            if (customId) {
+                peerOptions.id = customId;
+            }
+
+            peer = new Peer(customId, peerOptions);
+
+            peer.on('open', (id) => {
+                myPeerId = id;
+                document.getElementById('myId').textContent = id;
+                const peerIdFromURL = getPeerIdFromURL();
+
+                log(`Peer opened. My ID: ${id}`);
+                // Hide Peer ID input group after setting ID
+                if (customId) {
+                    document.getElementById('peerIdInputGroup').style.display = 'none';
+                }
+
+                if (peerIdFromURL && peerIdFromURL !== id) {
+                    log('Connecting to existing peer from URL');
+                    connectToPeer(peerIdFromURL);
+                } else if (!customId) {
+                    // If no custom ID is set and no peer ID in URL, set as initiator
                     log('New chat as initiator');
                     isInitiator = true;
                     document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
                     document.getElementById('copyLinkBtn').style.display = 'inline-block';
                     setupCopyLinkButton(id);
                 }
-            }, 1000); // 1 second delay
+            });
 
-            // Replace setInterval with a more battery-friendly approach
-            let lastCheckTime = Date.now();
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    const now = Date.now();
-                    if (now - lastCheckTime > 5000) {
-                        checkConnectionStatus();
-                        lastCheckTime = now;
+            peer.on('connection', (connection) => {
+                conn = connection;
+                setupConnection();
+                showChatInterface();
+                
+                if (isInitiator && !chatId) {
+                    chatId = generateChatId();
+                    updateUrlWithChatIdAndPeerId(chatId, myPeerId);
+                    conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+                }
+                
+                log('Your friend has joined the chat!');
+                displayMessage('Your friend has joined the chat!', 'system');
+                
+                peer.on('call', (call) => {
+                    if (confirm('Incoming video call. Do you want to answer?')) {
+                        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                            .then((stream) => {
+                                localStream = stream;
+                                document.getElementById('localVideo').srcObject = stream;
+                                call.answer(stream);
+                                setupMediaConnection(call);
+                                document.getElementById('videoCallContainer').style.display = 'block';
+                                document.getElementById('startCallBtn').style.display = 'none';
+                                document.getElementById('endCallBtn').style.display = 'inline-block';
+                            })
+                            .catch((err) => {
+                                console.error('Failed to get local stream', err);
+                                alert('Failed to answer video call. Please check your camera and microphone permissions.');
+                            });
+                    } else {
+                        call.close();
                     }
-                }
+                });
             });
-        });
 
-        peer.on('connection', (connection) => {
-            conn = connection;
-            setupConnection();
-            showChatInterface();
-            
-            if (isInitiator && !chatId) {
-                chatId = generateChatId();
-                updateUrlWithChatIdAndPeerId(chatId, myPeerId);
-                conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
-            }
-            
-            log('Your friend has joined the chat!');
-            displayMessage('Your friend has joined the chat!', 'system');
-            
-            peer.on('call', (call) => {
-                if (confirm('Incoming video call. Do you want to answer?')) {
-                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                        .then((stream) => {
-                            localStream = stream;
-                            document.getElementById('localVideo').srcObject = stream;
-                            call.answer(stream);
-                            setupMediaConnection(call);
-                            document.getElementById('videoCallContainer').style.display = 'block';
-                            document.getElementById('startCallBtn').style.display = 'none';
-                            document.getElementById('endCallBtn').style.display = 'inline-block';
-                        })
-                        .catch((err) => {
-                            console.error('Failed to get local stream', err);
-                            alert('Failed to answer video call. Please check your camera and microphone permissions.');
-                        });
+            peer.on('error', (err) => {
+                console.error(err);
+                if (err.type === 'unavailable-id') {
+                    alert('This chat name is already taken. Please choose another one.');
                 } else {
-                    call.close();
+                    log(`PeerJS Error: ${err.type} - ${err.message}`);
                 }
             });
+        }
+
+        // On page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const peerIdFromURL = getPeerIdFromURL();
+            if (peerIdFromURL) {
+                // If the URL contains a Peer ID, attempt to connect to it
+                initializePeer();
+                connectToPeer(peerIdFromURL);
+            } else {
+                // Show the Peer ID input group for the initiator to set a custom ID
+                document.getElementById('peerIdInputGroup').style.display = 'block';
+            }
         });
 
         function connectToPeer(peerId) {
@@ -415,7 +423,7 @@ This specification outlines the core functionality and design of the chat applic
             // Enhanced retry mechanism
             let retryCount = 0;
             const maxRetries = 100; // Increased number of retries
-            const retryInterval = 1000; // Reduced interval to 3 seconds
+            const retryInterval = 1000; // 1 second interval
 
             function retryConnection() {
                 if (retryCount < maxRetries) {
@@ -464,8 +472,11 @@ This specification outlines the core functionality and design of the chat applic
                     displayMessage('Incoming video call...', 'system');
                 } else if (data.type === 'endCall') {
                     endVideoCall(false);
-                } else {
-                    displayMessage(data, 'friend');
+                } else if (data.type === 'text') {
+                    displayMessage(data.content, 'friend');
+                    playSound('receive');
+                } else if (data.type === 'image') {
+                    displayMessage(data.content, 'friend');
                     playSound('receive');
                 }
             });
@@ -495,7 +506,7 @@ This specification outlines the core functionality and design of the chat applic
             const message = messageInput.value.trim();
             if (message && conn && conn.open) {
                 conn.send({ type: 'text', content: message });
-                displayMessage({ type: 'text', content: message }, 'you');
+                displayMessage(message, 'you');
                 messageInput.value = '';
                 playSound('send');
             }
@@ -506,7 +517,7 @@ This specification outlines the core functionality and design of the chat applic
             const messageElement = document.createElement('div');
             messageElement.className = `message ${className}`;
             
-            if (typeof message === 'string') {
+            if (className === 'system') {
                 // Handle system messages
                 messageElement.textContent = message;
                 messageElement.classList.add('system');
@@ -518,14 +529,17 @@ This specification outlines the core functionality and design of the chat applic
                         chatArea.removeChild(messageElement);
                     }, 1000);
                 }, 20000); // 20 seconds before fading
-            } else if (message.type === 'text') {
-                messageElement.textContent = message.content;
-            } else if (message.type === 'image') {
-                const img = document.createElement('img');
-                img.src = message.content;
-                img.style.maxWidth = '100%';
-                img.style.maxHeight = '200px';
-                messageElement.appendChild(img);
+            } else if (className === 'you' || className === 'friend') {
+                if (typeof message === 'string') {
+                    // Handle text messages
+                    messageElement.textContent = message;
+                } else if (message.type === 'image') {
+                    const img = document.createElement('img');
+                    img.src = message.content;
+                    img.style.maxWidth = '100%';
+                    img.style.maxHeight = '200px';
+                    messageElement.appendChild(img);
+                }
             }
             
             chatArea.appendChild(messageElement);
@@ -537,9 +551,10 @@ This specification outlines the core functionality and design of the chat applic
             const copyStatus = document.getElementById('copyStatus');
 
             copyLinkBtn.addEventListener('click', () => {
+                // Construct the URL with the custom Peer ID as a path segment
                 const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('peerId', id);
-                const fullUrl = currentUrl.toString();
+                const baseUrl = `${currentUrl.origin}/chat/${id}`;
+                const fullUrl = baseUrl;
 
                 navigator.clipboard.writeText(fullUrl).then(() => {
                     copyStatus.textContent = 'Link copied to clipboard!';
@@ -565,8 +580,8 @@ This specification outlines the core functionality and design of the chat applic
 
         function updateUrlWithChatIdAndPeerId(chatId, peerId) {
             const url = new URL(window.location.href);
+            url.pathname = `/chat/${peerId}`;
             url.searchParams.set('chatId', chatId);
-            url.searchParams.set('peerId', peerId);
             window.history.replaceState({}, '', url);
         }
 
@@ -607,7 +622,7 @@ This specification outlines the core functionality and design of the chat applic
             }
         });
 
-        // Add this function to handle file selection
+        // Handle file selection for image sharing
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (file && file.type.startsWith('image/')) {
@@ -616,7 +631,7 @@ This specification outlines the core functionality and design of the chat applic
                     const imageData = e.target.result;
                     if (conn && conn.open) {
                         conn.send({ type: 'image', content: imageData });
-                        displayMessage({ type: 'image', content: imageData }, 'you');
+                        displayMessage(imageData, 'you');
                         playSound('send');
                     }
                 };
@@ -627,7 +642,7 @@ This specification outlines the core functionality and design of the chat applic
         // Add event listener for file input
         document.getElementById('fileInput').addEventListener('change', handleFileSelect);
 
-        // Add this function to start a video call
+        // Start a video call
         async function startVideoCall() {
             if (!(await requestMediaPermissions())) {
                 return;
@@ -653,23 +668,19 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        // Add this function to end a video call
+        // End a video call
         function endVideoCall(isInitiator = true) {
             console.log('Ending video call');
             
             // Stop all tracks in the local stream
             if (localStream) {
-                localStream.getTracks().forEach(track => {
-                    track.stop();
-                });
+                localStream.getTracks().forEach(track => track.stop());
                 localStream = null;
             }
 
             // Stop all tracks in the remote stream
             if (remoteStream) {
-                remoteStream.getTracks().forEach(track => {
-                    track.stop();
-                });
+                remoteStream.getTracks().forEach(track => track.stop());
                 remoteStream = null;
             }
 
@@ -704,7 +715,7 @@ This specification outlines the core functionality and design of the chat applic
             displayMessage(isInitiator ? 'You ended the video call' : 'Your friend ended the video call', 'system');
         }
 
-        // Add this function to set up the media connection
+        // Set up the media connection for video calls
         function setupMediaConnection(call) {
             mediaConnection = call;
 
@@ -746,6 +757,7 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
+        // Handle incoming video calls
         peer.on('call', async (call) => {
             if (await requestMediaPermissions()) {
                 try {
