@@ -161,6 +161,14 @@ This specification outlines the core functionality and design of the chat applic
             overflow: hidden;
             margin: auto;
         }
+        #messageInput {
+            border-radius: 19px;
+            border: 0;
+        }
+        .text-input {
+            border-radius: 19px;
+            border: 0;
+        }
         .btn-round{
             border-radius: 22px;
         }
@@ -190,6 +198,25 @@ This specification outlines the core functionality and design of the chat applic
             margin-top: 10px;
             z-index: 1001;
         }
+        .input-group>:not(:first-child):not(.dropdown-menu):not(.valid-tooltip):not(.valid-feedback):not(.invalid-tooltip):not(.invalid-feedback){
+             background: transparent;
+             border: 0;
+             outline: none;
+             box-shadow: none;
+        }
+        .input-group>:not(:first-child):not(.dropdown-menu):not(.valid-tooltip):not(.valid-feedback):not(.invalid-tooltip):not(.invalid-feedback):focus {
+             outline: none;
+             box-shadow: none;
+        }
+        .send-message-btn {
+            position: absolute;
+            right: -1px;
+            border: 0;
+            border-radius: 20px !important;
+        }
+        .send-message-btn:hover {
+            background-color: #FF8C00; /* Dark orange */
+        }
     </style>
 </head>
 <body>
@@ -215,10 +242,10 @@ This specification outlines the core functionality and design of the chat applic
                 <div class="input-group">
                     <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">📷</button>
                     <button id="startCallBtn" class="btn btn-success">📞</button>
-                    <input type="text" id="messageInput" class="form-control" placeholder="Type a message">
+                    <input type="text" id="messageInput" class="form-control text-imput" placeholder="Type a message">
                     <input type="file" id="fileInput" accept="image/*" style="display: none;">
                  
-                    <button class="btn btn-primary btn-round" onclick="sendMessage()">Send</button>
+                    <button class="btn btn-primary btn-round send-message-btn" onclick="sendMessage()">Send</button>
                 </div>
             </div>
         </div>
