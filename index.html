@@ -736,12 +736,13 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         peer.on('call', async (call) => {
+            displayMessage('Incoming video call...', 'system');
             try {
-                // Directly request media permissions
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 document.getElementById('localVideo').srcObject = localStream;
-                
-                // Answer the call with the obtained stream
                 call.answer(localStream);
                 setupMediaConnection(call);
                 document.getElementById('videoCallContainer').style.display = 'flex';
@@ -750,7 +751,7 @@ This specification outlines the core functionality and design of the chat applic
                 displayMessage('Video call connected', 'system');
             } catch (err) {
                 console.error('Failed to get local stream', err);
-                displayMessage('Failed to access camera and microphone. Please check your permissions.', 'system');
+                displayMessage('Failed to answer video call. Please check your camera and microphone permissions.', 'system');
                 call.close();
             }
         });
