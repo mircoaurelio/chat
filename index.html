@@ -164,6 +164,7 @@ This specification outlines the core functionality and design of the chat applic
         #messageInput {
             border-radius: 19px;
             border: 0;
+            margin-right: 60px;
         }
         .text-input {
             border-radius: 19px;
@@ -209,26 +210,30 @@ This specification outlines the core functionality and design of the chat applic
              box-shadow: none;
         }
         .send-message-btn {
-            position: absolute;
-            right: -1px;
-            border: 0;
+            position: absolute  !important;
+            right: -1px  !important;
+            border: 0  !important;
             border-radius: 20px !important;
         }
         .send-message-btn:hover {
-            background-color: #FF8C00; /* Dark orange */
+            background-color:   #f6b463!important; /* light orange */
         }
         .send-message-btn {
-            background-color: #f6b463; /* Dark orange */
+            background-color:#FF8C00  !important; /* Dark orange */
         }
     </style>
 </head>
 <body>
     <div id="shareInterface" class="container text-center mt-3">
         <h2>P2P Chat</h2>
-          <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
-          
+        <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
+        
         <p id="loadingMessage">...</p>
-        <button id="copyLinkBtn" class="btn btn-success btn-round" style="display: none;">Copy Chat Link</button>
+        <div class="input-group mb-3">
+            <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
+            <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
+            <button id="copyLinkBtn" class="btn btn-success btn-round">Copy Chat Link</button>
+        </div>
         <p id="copyStatus" class="mt-2"></p>
         <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
             <h5>Debug Log:</h5>
@@ -281,15 +286,141 @@ This specification outlines the core functionality and design of the chat applic
             console.log(message); // Also log to console for desktop debugging
         }
 
-        const peer = new Peer();
+        let peer;
         let conn;
-        let chatId;
         let myPeerId;
         let isInitiator = false;
         let localStream;
         let remoteStream;
         let mediaConnection;
-        let systemMessageCooldown = false;
+        let customPeerId = '';
+
+        function initializePeer() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const initiatorWord = urlParams.get('i');
+            const receiverWord = urlParams.get('r');
+
+            if (initiatorWord) {
+                customPeerId = initiatorWord;
+                isInitiator = true;
+                document.getElementById('customPeerId').value = initiatorWord;
+            } else if (receiverWord) {
+                isInitiator = false;
+                document.getElementById('sharewordInput').value = receiverWord;
+            }
+
+            peer = customPeerId ? new Peer(customPeerId) : new Peer();
+            
+            peer.on('open', (id) => {
+                myPeerId = id;
+                document.getElementById('myId').textContent = id;
+                
+                log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
+
+                // Delay the connection attempt to ensure PeerJS is fully initialized
+                setTimeout(() => {
+                    if (receiverWord) {
+                        log('Connecting to initiator');
+                        connectToPeer(receiverWord);
+                    } else {
+                        log('New chat as initiator');
+                        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+                        document.getElementById('copyLinkBtn').style.display = 'inline-block';
+                        setupCopyLinkButton(id);
+                    }
+                }, 1000); // 1 second delay
+
+                // Replace setInterval with a more battery-friendly approach
+                let lastCheckTime = Date.now();
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) {
+                        const now = Date.now();
+                        if (now - lastCheckTime > 5000) {
+                            checkConnectionStatus();
+                            lastCheckTime = now;
+                        }
+                    }
+                });
+            });
+
+            peer.on('connection', (connection) => {
+                conn = connection;
+                setupConnection();
+                showChatInterface();
+                
+                log('Your friend has joined the chat!');
+                displayMessage('Your friend has joined the chat!', 'system');
+                
+                peer.on('call', (call) => {
+                    if (confirm('Incoming video call. Do you want to answer?')) {
+                        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                            .then((stream) => {
+                                localStream = stream;
+                                document.getElementById('localVideo').srcObject = stream;
+                                call.answer(stream);
+                                setupMediaConnection(call);
+                                document.getElementById('videoCallContainer').style.display = 'block';
+                                document.getElementById('startCallBtn').style.display = 'none';
+                                document.getElementById('endCallBtn').style.display = 'inline-block';
+                            })
+                            .catch((err) => {
+                                console.error('Failed to get local stream', err);
+                                alert('Failed to answer video call. Please check your camera and microphone permissions.');
+                            });
+                    } else {
+                        call.close();
+                    }
+                });
+            });
+        }
+
+        function generateRandomId() {
+            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+        }
+
+        function setupCopyLinkButton(id) {
+            const copyLinkBtn = document.getElementById('copyLinkBtn');
+            const copyStatus = document.getElementById('copyStatus');
+            const sharewordInput = document.getElementById('sharewordInput');
+
+            copyLinkBtn.addEventListener('click', () => {
+                const shareWord = sharewordInput.value.trim() || customPeerId || id;
+                const shareLink = `${window.location.origin}${window.location.pathname}?r=${shareWord}`;
+
+                navigator.clipboard.writeText(shareLink).then(() => {
+                    copyStatus.textContent = 'Link copied to clipboard!';
+                    setTimeout(() => {
+                        copyStatus.textContent = '';
+                    }, 3000);
+                }, (err) => {
+                    console.error('Could not copy text: ', err);
+                    copyStatus.textContent = 'Failed to copy link. Please try again.';
+                });
+            });
+        }
+
+        // Initialize peer when the page loads
+        window.addEventListener('load', () => {
+            initializePeer();
+            
+            // Add event listener for shareword input
+            const sharewordInput = document.getElementById('sharewordInput');
+            sharewordInput.addEventListener('change', handleSharewordChange);
+        });
+
+        // Re-initialize peer when custom ID changes
+        document.getElementById('customPeerId').addEventListener('change', () => {
+            if (peer) {
+                peer.destroy();
+            }
+            customPeerId = document.getElementById('customPeerId').value.trim();
+            initializePeer();
+            
+            // Update URL and copy link
+            const newUrl = `${window.location.origin}${window.location.pathname}?i=${customPeerId}`;
+            window.history.pushState({}, '', newUrl);
+            setupCopyLinkButton(customPeerId);
+        });
 
         // Add this function to create and play sounds
         function createAndPlaySound(frequency, duration) {
@@ -327,82 +458,6 @@ This specification outlines the core functionality and design of the chat applic
                 notificationArea.style.display = 'none';
             }, duration);
         }
-
-        peer.on('open', (id) => {
-            myPeerId = id;
-            document.getElementById('myId').textContent = id;
-            const urlParams = new URLSearchParams(window.location.search);
-            chatId = urlParams.get('chatId');
-            const peerId = urlParams.get('peerId');
-            
-            log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
-
-            // Delay the connection attempt to ensure PeerJS is fully initialized
-            setTimeout(() => {
-                if (chatId && peerId) {
-                    log('Reconnecting to existing chat');
-                    connectToPeer(peerId);
-                } else if (peerId) {
-                    log('New connection as receiver');
-                    isInitiator = false;
-                    connectToPeer(peerId);
-                } else {
-                    log('New chat as initiator');
-                    isInitiator = true;
-                    document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-                    document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                    setupCopyLinkButton(id);
-                }
-            }, 1000); // 1 second delay
-
-            // Replace setInterval with a more battery-friendly approach
-            let lastCheckTime = Date.now();
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    const now = Date.now();
-                    if (now - lastCheckTime > 5000) {
-                        checkConnectionStatus();
-                        lastCheckTime = now;
-                    }
-                }
-            });
-        });
-
-        peer.on('connection', (connection) => {
-            conn = connection;
-            setupConnection();
-            showChatInterface();
-            
-            if (isInitiator && !chatId) {
-                chatId = generateChatId();
-                updateUrlWithChatIdAndPeerId(chatId, myPeerId);
-                conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
-            }
-            
-            log('Your friend has joined the chat!');
-            displayMessage('Your friend has joined the chat!', 'system');
-            
-            peer.on('call', (call) => {
-                if (confirm('Incoming video call. Do you want to answer?')) {
-                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                        .then((stream) => {
-                            localStream = stream;
-                            document.getElementById('localVideo').srcObject = stream;
-                            call.answer(stream);
-                            setupMediaConnection(call);
-                            document.getElementById('videoCallContainer').style.display = 'block';
-                            document.getElementById('startCallBtn').style.display = 'none';
-                            document.getElementById('endCallBtn').style.display = 'inline-block';
-                        })
-                        .catch((err) => {
-                            console.error('Failed to get local stream', err);
-                            alert('Failed to answer video call. Please check your camera and microphone permissions.');
-                        });
-                } else {
-                    call.close();
-                }
-            });
-        });
 
         function connectToPeer(peerId) {
             log(`Connecting to peer: ${peerId}`);
@@ -449,18 +504,11 @@ This specification outlines the core functionality and design of the chat applic
                 log('Connected to peer');
                 displayMessage('Connected to peer', 'system');
                 showChatInterface();
-                
-                if (chatId && isInitiator) {
-                    log('Sending chat ID to peer');
-                    conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
-                }
             });
             
             conn.on('data', (data) => {
                 log(`Received data: ${JSON.stringify(data)}`);
-                if (data.type === 'chatId') {
-                    handleChatIdMessage(data.chatId, data.initiatorId);
-                } else if (data.type === 'prepareForCall') {
+                if (data.type === 'prepareForCall') {
                     displayMessage('Incoming video call...', 'system');
                 } else if (data.type === 'endCall') {
                     endVideoCall(false);
@@ -481,13 +529,6 @@ This specification outlines the core functionality and design of the chat applic
                 displayMessage('Connection error: ' + err.message, 'system');
                 showReconnectButton();
             });
-        }
-
-        function handleChatIdMessage(receivedChatId, initiatorId) {
-            if (!chatId) {
-                chatId = receivedChatId;
-                updateUrlWithChatIdAndPeerId(chatId, initiatorId);
-            }
         }
 
         function sendMessage() {
@@ -532,42 +573,10 @@ This specification outlines the core functionality and design of the chat applic
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        function setupCopyLinkButton(id) {
-            const copyLinkBtn = document.getElementById('copyLinkBtn');
-            const copyStatus = document.getElementById('copyStatus');
-
-            copyLinkBtn.addEventListener('click', () => {
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('peerId', id);
-                const fullUrl = currentUrl.toString();
-
-                navigator.clipboard.writeText(fullUrl).then(() => {
-                    copyStatus.textContent = 'Link copied to clipboard!';
-                    setTimeout(() => {
-                        copyStatus.textContent = '';
-                    }, 3000);
-                }, (err) => {
-                    console.error('Could not copy text: ', err);
-                    copyStatus.textContent = 'Failed to copy link. Please try again.';
-                });
-            });
-        }
-
         function showChatInterface() {
             document.getElementById('chatInterface').style.display = 'flex';
             document.getElementById('chatInterface').style.flexDirection = 'column';
             document.getElementById('shareInterface').style.display = 'none';
-        }
-
-        function generateChatId() {
-            return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-        }
-
-        function updateUrlWithChatIdAndPeerId(chatId, peerId) {
-            const url = new URL(window.location.href);
-            url.searchParams.set('chatId', chatId);
-            url.searchParams.set('peerId', peerId);
-            window.history.replaceState({}, '', url);
         }
 
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
@@ -629,10 +638,6 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add this function to start a video call
         async function startVideoCall() {
-            if (!(await requestMediaPermissions())) {
-                return;
-            }
-
             try {
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
@@ -649,7 +654,7 @@ This specification outlines the core functionality and design of the chat applic
                 displayMessage('Video call started', 'system');
             } catch (err) {
                 console.error('Failed to start video call:', err);
-                showNotification('Failed to start video call. Please check your camera and microphone.', 5000);
+                showNotification('Failed to start video call. Please check your camera and microphone permissions.', 5000);
             }
         }
 
@@ -735,38 +740,20 @@ This specification outlines the core functionality and design of the chat applic
         document.getElementById('startCallBtn').addEventListener('click', startVideoCall);
         document.getElementById('endCallBtn').addEventListener('click', () => endVideoCall(true));
 
-        async function requestMediaPermissions() {
-            try {
-                await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                return true;
-            } catch (err) {
-                console.error('Failed to get media permissions:', err);
-                showNotification('Please grant camera and microphone permissions for video calls.', 5000);
-                return false;
+        // Add this function to handle shareword input changes
+        function handleSharewordChange() {
+            const sharewordInput = document.getElementById('sharewordInput');
+            const shareword = sharewordInput.value.trim();
+            
+            if (shareword) {
+                const newUrl = `${window.location.origin}${window.location.pathname}?r=${shareword}`;
+                window.history.pushState({}, '', newUrl);
+                setupCopyLinkButton(shareword);
+                
+                // Attempt to connect using the shareword
+                connectToPeer(shareword);
             }
         }
-
-        peer.on('call', async (call) => {
-            if (await requestMediaPermissions()) {
-                try {
-                    if (localStream) {
-                        localStream.getTracks().forEach(track => track.stop());
-                    }
-                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    document.getElementById('localVideo').srcObject = localStream;
-                    call.answer(localStream);
-                    setupMediaConnection(call);
-                    document.getElementById('videoCallContainer').style.display = 'flex';
-                    document.getElementById('startCallBtn').style.display = 'none';
-                    displayMessage('Video call connected', 'system');
-                } catch (err) {
-                    console.error('Failed to get local stream', err);
-                    showNotification('Failed to answer video call. Please check your camera and microphone.', 5000);
-                }
-            } else {
-                call.close();
-            }
-        });
     </script>
  
 </body>
