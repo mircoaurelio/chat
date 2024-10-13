@@ -225,9 +225,13 @@ This specification outlines the core functionality and design of the chat applic
 <body>
     <div id="shareInterface" class="container text-center mt-3">
         <h2>P2P Chat</h2>
-          <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
-          
+        <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
+        
         <p id="loadingMessage">...</p>
+        <div class="input-group mb-3">
+            <input type="text" id="customIdInput" class="form-control" placeholder="Enter custom ID (optional)">
+            <button id="generatePeerId" class="btn btn-primary">Generate Peer ID</button>
+        </div>
         <button id="copyLinkBtn" class="btn btn-success btn-round" style="display: none;">Copy Chat Link</button>
         <p id="copyStatus" class="mt-2"></p>
         <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
@@ -281,7 +285,7 @@ This specification outlines the core functionality and design of the chat applic
             console.log(message); // Also log to console for desktop debugging
         }
 
-        const peer = new Peer();
+        let peer;
         let conn;
         let chatId;
         let myPeerId;
@@ -290,6 +294,98 @@ This specification outlines the core functionality and design of the chat applic
         let remoteStream;
         let mediaConnection;
         let systemMessageCooldown = false;
+
+        function initializePeer(customId = null) {
+            if (peer) {
+                peer.destroy();
+            }
+            peer = new Peer(customId);
+
+            peer.on('open', (id) => {
+                myPeerId = id;
+                document.getElementById('myId').textContent = id;
+                const urlParams = new URLSearchParams(window.location.search);
+                chatId = urlParams.get('chatId');
+                const peerId = urlParams.get('peerId');
+                
+                log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
+
+                // Delay the connection attempt to ensure PeerJS is fully initialized
+                setTimeout(() => {
+                    if (chatId && peerId) {
+                        log('Reconnecting to existing chat');
+                        connectToPeer(peerId);
+                    } else if (peerId) {
+                        log('New connection as receiver');
+                        isInitiator = false;
+                        connectToPeer(peerId);
+                    } else {
+                        log('New chat as initiator');
+                        isInitiator = true;
+                        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+                        document.getElementById('copyLinkBtn').style.display = 'inline-block';
+                        setupCopyLinkButton(id);
+                    }
+                }, 1000); // 1 second delay
+
+                // Replace setInterval with a more battery-friendly approach
+                let lastCheckTime = Date.now();
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) {
+                        const now = Date.now();
+                        if (now - lastCheckTime > 5000) {
+                            checkConnectionStatus();
+                            lastCheckTime = now;
+                        }
+                    }
+                });
+            });
+
+            peer.on('connection', (connection) => {
+                conn = connection;
+                setupConnection();
+                showChatInterface();
+                
+                if (isInitiator && !chatId) {
+                    chatId = generateChatId();
+                    updateUrlWithChatIdAndPeerId(chatId, myPeerId);
+                    conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+                }
+                
+                log('Your friend has joined the chat!');
+                displayMessage('Your friend has joined the chat!', 'system');
+                
+                peer.on('call', (call) => {
+                    if (confirm('Incoming video call. Do you want to answer?')) {
+                        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                            .then((stream) => {
+                                localStream = stream;
+                                document.getElementById('localVideo').srcObject = stream;
+                                call.answer(stream);
+                                setupMediaConnection(call);
+                                document.getElementById('videoCallContainer').style.display = 'block';
+                                document.getElementById('startCallBtn').style.display = 'none';
+                                document.getElementById('endCallBtn').style.display = 'inline-block';
+                            })
+                            .catch((err) => {
+                                console.error('Failed to get local stream', err);
+                                alert('Failed to answer video call. Please check your camera and microphone permissions.');
+                            });
+                    } else {
+                        call.close();
+                    }
+                });
+            });
+        }
+
+        document.getElementById('generatePeerId').addEventListener('click', () => {
+            const customIdInput = document.getElementById('customIdInput');
+            const customId = customIdInput.value.trim() || null;
+            initializePeer(customId);
+        });
+
+        // Initialize peer with null to start
+        initializePeer();
 
         // Add this function to create and play sounds
         function createAndPlaySound(frequency, duration) {
@@ -327,82 +423,6 @@ This specification outlines the core functionality and design of the chat applic
                 notificationArea.style.display = 'none';
             }, duration);
         }
-
-        peer.on('open', (id) => {
-            myPeerId = id;
-            document.getElementById('myId').textContent = id;
-            const urlParams = new URLSearchParams(window.location.search);
-            chatId = urlParams.get('chatId');
-            const peerId = urlParams.get('peerId');
-            
-            log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
-
-            // Delay the connection attempt to ensure PeerJS is fully initialized
-            setTimeout(() => {
-                if (chatId && peerId) {
-                    log('Reconnecting to existing chat');
-                    connectToPeer(peerId);
-                } else if (peerId) {
-                    log('New connection as receiver');
-                    isInitiator = false;
-                    connectToPeer(peerId);
-                } else {
-                    log('New chat as initiator');
-                    isInitiator = true;
-                    document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-                    document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                    setupCopyLinkButton(id);
-                }
-            }, 1000); // 1 second delay
-
-            // Replace setInterval with a more battery-friendly approach
-            let lastCheckTime = Date.now();
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    const now = Date.now();
-                    if (now - lastCheckTime > 5000) {
-                        checkConnectionStatus();
-                        lastCheckTime = now;
-                    }
-                }
-            });
-        });
-
-        peer.on('connection', (connection) => {
-            conn = connection;
-            setupConnection();
-            showChatInterface();
-            
-            if (isInitiator && !chatId) {
-                chatId = generateChatId();
-                updateUrlWithChatIdAndPeerId(chatId, myPeerId);
-                conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
-            }
-            
-            log('Your friend has joined the chat!');
-            displayMessage('Your friend has joined the chat!', 'system');
-            
-            peer.on('call', (call) => {
-                if (confirm('Incoming video call. Do you want to answer?')) {
-                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                        .then((stream) => {
-                            localStream = stream;
-                            document.getElementById('localVideo').srcObject = stream;
-                            call.answer(stream);
-                            setupMediaConnection(call);
-                            document.getElementById('videoCallContainer').style.display = 'block';
-                            document.getElementById('startCallBtn').style.display = 'none';
-                            document.getElementById('endCallBtn').style.display = 'inline-block';
-                        })
-                        .catch((err) => {
-                            console.error('Failed to get local stream', err);
-                            alert('Failed to answer video call. Please check your camera and microphone permissions.');
-                        });
-                } else {
-                    call.close();
-                }
-            });
-        });
 
         function connectToPeer(peerId) {
             log(`Connecting to peer: ${peerId}`);
