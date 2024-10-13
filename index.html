@@ -767,6 +767,22 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add these new functions
         function showIncomingCallUI(call) {
+            const callUI = document.createElement('div');
+            callUI.id = 'incomingCallUI';
+            callUI.style.position = 'fixed';
+            callUI.style.top = '50%';
+            callUI.style.left = '50%';
+            callUI.style.transform = 'translate(-50%, -50%)';
+            callUI.style.backgroundColor = 'white';
+            callUI.style.padding = '20px';
+            callUI.style.borderRadius = '10px';
+            callUI.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
+            callUI.style.zIndex = '1000';
+
+            const message = document.createElement('p');
+            message.textContent = 'Incoming video call...';
+            callUI.appendChild(message);
+
             const answerBtn = document.createElement('button');
             answerBtn.textContent = 'Answer Call';
             answerBtn.className = 'btn btn-success';
@@ -792,17 +808,6 @@ This specification outlines the core functionality and design of the chat applic
             rejectBtn.className = 'btn btn-danger';
             rejectBtn.onclick = () => rejectCall(call);
 
-            const callUI = document.createElement('div');
-            callUI.id = 'incomingCallUI';
-            callUI.style.position = 'fixed';
-            callUI.style.top = '50%';
-            callUI.style.left = '50%';
-            callUI.style.transform = 'translate(-50%, -50%)';
-            callUI.style.backgroundColor = 'white';
-            callUI.style.padding = '20px';
-            callUI.style.borderRadius = '10px';
-            callUI.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
-            callUI.style.zIndex = '1000';
             callUI.appendChild(answerBtn);
             callUI.appendChild(rejectBtn);
 
