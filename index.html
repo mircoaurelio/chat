@@ -752,24 +752,17 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        peer.on('call', (call) => {
-            displayMessage('Incoming video call...', 'system');
-            if (confirm('Incoming video call. Do you want to answer?')) {
-                navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                    .then((stream) => {
-                        localStream = stream;
-                        document.getElementById('localVideo').srcObject = stream;
-                        call.answer(stream);
-                        setupMediaConnection(call);
-                        document.getElementById('videoCallContainer').style.display = 'flex';
-                        document.getElementById('startCallBtn').style.display = 'none';
-                        document.getElementById('endCallBtn').style.display = 'inline-block';
-                    })
-                    .catch((err) => {
-                        console.error('Failed to get local stream', err);
-                        displayMessage('Failed to answer video call. Please check your camera and microphone permissions.', 'system');
-                    });
-            } else {
+        peer.on('call', async (call) => {
+            // Request media permissions immediately
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                
+                // Show the incoming call UI after permissions are granted
+                showIncomingCallUI(call);
+            } catch (err) {
+                console.error('Failed to get local stream', err);
+                displayMessage('Failed to access camera and microphone. Please check your permissions.', 'system');
                 call.close();
             }
         });
@@ -818,24 +811,13 @@ This specification outlines the core functionality and design of the chat applic
             document.body.appendChild(callUI);
         }
 
-        async function answerCall(call) {
-            try {
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                }
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('localVideo').srcObject = localStream;
-                call.answer(localStream);
-                setupMediaConnection(call);
-                document.getElementById('videoCallContainer').style.display = 'flex';
-                document.getElementById('startCallBtn').style.display = 'none';
-                document.getElementById('endCallBtn').style.display = 'inline-block';
-                removeIncomingCallUI();
-            } catch (err) {
-                console.error('Failed to answer video call:', err);
-                displayMessage('Failed to answer video call. Please check your camera and microphone permissions.', 'system');
-                removeIncomingCallUI();
-            }
+        function answerCall(call) {
+            call.answer(localStream);
+            setupMediaConnection(call);
+            document.getElementById('videoCallContainer').style.display = 'flex';
+            document.getElementById('startCallBtn').style.display = 'none';
+            document.getElementById('endCallBtn').style.display = 'inline-block';
+            removeIncomingCallUI();
         }
 
         function rejectCall(call) {
