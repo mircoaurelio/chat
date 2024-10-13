@@ -317,13 +317,6 @@ This specification outlines the core functionality and design of the chat applic
                 
                 log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
 
-                // Update URL for initiator immediately
-                if (isInitiator) {
-                    const currentUrl = new URL(window.location.href);
-                    currentUrl.searchParams.set('i', customPeerId || id);
-                    window.history.replaceState({}, '', currentUrl);
-                }
-
                 // Delay the connection attempt to ensure PeerJS is fully initialized
                 setTimeout(() => {
                     if (receiverWord) {
