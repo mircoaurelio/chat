@@ -224,35 +224,19 @@ This specification outlines the core functionality and design of the chat applic
     </style>
 </head>
 <body>
-    <div id="shareInterface" class="container mt-5">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h2 class="mb-0">P2P Chat</h2>
-                    </div>
-                    <div class="card-body">
-                        <div class="mb-3">
-                            <label for="customPeerId" class="form-label">Custom ID (optional)</label>
-                            <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID">
-                        </div>
-                        <div class="mb-3">
-                            <label for="sharewordInput" class="form-label">Shareword</label>
-                            <div class="input-group">
-                                <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
-                                <button id="enterRoomBtn" class="btn btn-success">Enter Room</button>
-                            </div>
-                        </div>
-                        <button id="copyLinkBtn" class="btn btn-primary btn-block w-100 mb-3">Copy Chat Link</button>
-                        <p id="copyStatus" class="text-success text-center mb-0"></p>
-                        <button id="reconnectBtn" class="btn btn-warning btn-sm mt-3" style="display: none;">Reconnect</button>
-                    </div>
-                </div>
-                <div id="logArea" class="mt-4 p-3 border rounded bg-light">
-                    <h5>Debug Log:</h5>
-                    <div id="logContent" style="max-height: 200px; overflow-y: auto;"></div>
-                </div>
-            </div>
+    <div id="shareInterface" class="container text-center mt-3">
+        <h2>P2P Chat</h2>
+        <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
+        
+        <p id="loadingMessage">...</p>
+        <div class="input-group mb-3">
+            <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
+            <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
+            <button id="copyLinkBtn" class="btn btn-success btn-round">Copy Chat Link</button>
+        </div>
+        <p id="copyStatus" class="mt-2"></p>
+        <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
+            <h5>Debug Log:</h5>
         </div>
     </div>
     <div id="chatInterface" style="display: none; height: 100%;">
@@ -292,13 +276,13 @@ This specification outlines the core functionality and design of the chat applic
 
     <script>
         function log(message) {
-            const logContent = document.getElementById('logContent');
+            const logArea = document.getElementById('logArea');
             const logMessage = document.createElement('p');
             logMessage.style.margin = '0';
             logMessage.style.fontSize = '0.8em';
             logMessage.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
-            logContent.appendChild(logMessage);
-            logContent.scrollTop = logContent.scrollHeight;
+            logArea.appendChild(logMessage);
+            logArea.scrollTop = logArea.scrollHeight;
             console.log(message); // Also log to console for desktop debugging
         }
 
@@ -310,7 +294,6 @@ This specification outlines the core functionality and design of the chat applic
         let remoteStream;
         let mediaConnection;
         let customPeerId = '';
-        let enterRoomBtn;
 
         function initializePeer() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -324,8 +307,6 @@ This specification outlines the core functionality and design of the chat applic
             } else if (receiverWord) {
                 isInitiator = false;
                 document.getElementById('sharewordInput').value = receiverWord;
-                // Automatically connect when there's a receiver word in the URL
-                handleEnterRoom();
             }
 
             peer = customPeerId ? new Peer(customPeerId) : new Peer();
@@ -424,11 +405,7 @@ This specification outlines the core functionality and design of the chat applic
             
             // Add event listener for shareword input
             const sharewordInput = document.getElementById('sharewordInput');
-            sharewordInput.addEventListener('keypress', handleSharewordKeyPress);
-            
-            // Add event listener for enter room button
-            enterRoomBtn = document.getElementById('enterRoomBtn');
-            enterRoomBtn.addEventListener('click', handleEnterRoom);
+            sharewordInput.addEventListener('change', handleSharewordChange);
         });
 
         // Re-initialize peer when custom ID changes
@@ -800,14 +777,8 @@ This specification outlines the core functionality and design of the chat applic
             }
         });
 
-        // Add these new functions
-        function handleSharewordKeyPress(e) {
-            if (e.key === 'Enter') {
-                handleEnterRoom();
-            }
-        }
-
-        function handleEnterRoom() {
+        // Add this function to handle shareword input changes
+        function handleSharewordChange() {
             const sharewordInput = document.getElementById('sharewordInput');
             const shareword = sharewordInput.value.trim();
             
@@ -818,8 +789,6 @@ This specification outlines the core functionality and design of the chat applic
                 
                 // Attempt to connect using the shareword
                 connectToPeer(shareword);
-            } else {
-                alert('Please enter a shareword to join a room.');
             }
         }
     </script>
