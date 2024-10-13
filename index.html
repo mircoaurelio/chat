@@ -352,21 +352,9 @@ This specification outlines the core functionality and design of the chat applic
                 displayMessage('Your friend has joined the chat!', 'system');
                 
                 peer.on('call', (call) => {
+                    displayMessage('Incoming video call...', 'system');
                     if (confirm('Incoming video call. Do you want to answer?')) {
-                        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                            .then((stream) => {
-                                localStream = stream;
-                                document.getElementById('localVideo').srcObject = stream;
-                                call.answer(stream);
-                                setupMediaConnection(call);
-                                document.getElementById('videoCallContainer').style.display = 'block';
-                                document.getElementById('startCallBtn').style.display = 'none';
-                                document.getElementById('endCallBtn').style.display = 'inline-block';
-                            })
-                            .catch((err) => {
-                                console.error('Failed to get local stream', err);
-                                alert('Failed to answer video call. Please check your camera and microphone permissions.');
-                            });
+                        requestMediaAndAnswerCall(call);
                     } else {
                         call.close();
                     }
@@ -790,6 +778,24 @@ This specification outlines the core functionality and design of the chat applic
                 // Attempt to connect using the shareword
                 connectToPeer(shareword);
             }
+        }
+
+        // Add this new function after the existing functions
+        function requestMediaAndAnswerCall(call) {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                .then((stream) => {
+                    localStream = stream;
+                    document.getElementById('localVideo').srcObject = stream;
+                    call.answer(stream);
+                    setupMediaConnection(call);
+                    document.getElementById('videoCallContainer').style.display = 'flex';
+                    document.getElementById('startCallBtn').style.display = 'none';
+                    document.getElementById('endCallBtn').style.display = 'inline-block';
+                })
+                .catch((err) => {
+                    console.error('Failed to get local stream', err);
+                    alert('Failed to answer video call. Please check your camera and microphone permissions.');
+                });
         }
     </script>
  
