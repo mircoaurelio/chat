@@ -231,6 +231,7 @@ This specification outlines the core functionality and design of the chat applic
         <p id="loadingMessage">...</p>
         <div class="input-group mb-3">
             <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
+            <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
             <button id="copyLinkBtn" class="btn btn-success btn-round">Copy Chat Link</button>
         </div>
         <p id="copyStatus" class="mt-2"></p>
@@ -305,6 +306,7 @@ This specification outlines the core functionality and design of the chat applic
                 document.getElementById('customPeerId').value = initiatorWord;
             } else if (receiverWord) {
                 isInitiator = false;
+                document.getElementById('sharewordInput').value = receiverWord;
             }
 
             peer = customPeerId ? new Peer(customPeerId) : new Peer();
@@ -379,9 +381,10 @@ This specification outlines the core functionality and design of the chat applic
         function setupCopyLinkButton(id) {
             const copyLinkBtn = document.getElementById('copyLinkBtn');
             const copyStatus = document.getElementById('copyStatus');
+            const sharewordInput = document.getElementById('sharewordInput');
 
             copyLinkBtn.addEventListener('click', () => {
-                const shareWord = customPeerId || id;
+                const shareWord = sharewordInput.value.trim() || customPeerId || id;
                 const shareLink = `${window.location.origin}${window.location.pathname}?r=${shareWord}`;
 
                 navigator.clipboard.writeText(shareLink).then(() => {
@@ -399,6 +402,10 @@ This specification outlines the core functionality and design of the chat applic
         // Initialize peer when the page loads
         window.addEventListener('load', () => {
             initializePeer();
+            
+            // Add event listener for shareword input
+            const sharewordInput = document.getElementById('sharewordInput');
+            sharewordInput.addEventListener('change', handleSharewordChange);
         });
 
         // Re-initialize peer when custom ID changes
@@ -406,7 +413,13 @@ This specification outlines the core functionality and design of the chat applic
             if (peer) {
                 peer.destroy();
             }
+            customPeerId = document.getElementById('customPeerId').value.trim();
             initializePeer();
+            
+            // Update URL and copy link
+            const newUrl = `${window.location.origin}${window.location.pathname}?i=${customPeerId}`;
+            window.history.pushState({}, '', newUrl);
+            setupCopyLinkButton(customPeerId);
         });
 
         // Add this function to create and play sounds
@@ -763,6 +776,21 @@ This specification outlines the core functionality and design of the chat applic
                 call.close();
             }
         });
+
+        // Add this function to handle shareword input changes
+        function handleSharewordChange() {
+            const sharewordInput = document.getElementById('sharewordInput');
+            const shareword = sharewordInput.value.trim();
+            
+            if (shareword) {
+                const newUrl = `${window.location.origin}${window.location.pathname}?r=${shareword}`;
+                window.history.pushState({}, '', newUrl);
+                setupCopyLinkButton(shareword);
+                
+                // Attempt to connect using the shareword
+                connectToPeer(shareword);
+            }
+        }
     </script>
  
 </body>
