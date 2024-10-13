@@ -224,19 +224,44 @@ This specification outlines the core functionality and design of the chat applic
     </style>
 </head>
 <body>
-    <div id="shareInterface" class="container text-center mt-3">
-        <h2>P2P Chat</h2>
-        <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
-        
-        <p id="loadingMessage">...</p>
-        <div class="input-group mb-3">
-            <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
-            <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
-            <button id="copyLinkBtn" class="btn btn-success btn-round">Copy Chat Link</button>
-        </div>
-        <p id="copyStatus" class="mt-2"></p>
-        <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
-            <h5>Debug Log:</h5>
+    <div id="shareInterface" class="container mt-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">P2P Chat</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="loadingMessage" class="alert alert-info" role="alert">
+                            Initializing...
+                        </div>
+                        <form id="chatForm">
+                            <div class="mb-3">
+                                <label for="customPeerId" class="form-label">Custom ID (optional)</label>
+                                <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID">
+                            </div>
+                            <div class="mb-3">
+                                <label for="sharewordInput" class="form-label">Shareword</label>
+                                <div class="input-group">
+                                    <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join or create">
+                                    <button type="submit" class="btn btn-success">Enter Room</button>
+                                </div>
+                            </div>
+                        </form>
+                        <div class="mt-3">
+                            <button id="copyLinkBtn" class="btn btn-primary btn-block">Copy Chat Link</button>
+                        </div>
+                        <p id="copyStatus" class="mt-2 text-success"></p>
+                    </div>
+                </div>
+                <div id="logArea" class="mt-4 card">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0">Debug Log</h5>
+                    </div>
+                    <div class="card-body" style="max-height: 200px; overflow-y: auto;">
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <div id="chatInterface" style="display: none; height: 100%;">
@@ -325,7 +350,9 @@ This specification outlines the core functionality and design of the chat applic
                     } else {
                         log('New chat as initiator');
                         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-                        document.getElementById('copyLinkBtn').style.display = 'inline-block';
+                        document.getElementById('loadingMessage').classList.remove('alert-info');
+                        document.getElementById('loadingMessage').classList.add('alert-success');
+                        document.getElementById('copyLinkBtn').disabled = false;
                         setupCopyLinkButton(id);
                     }
                 }, 1000); // 1 second delay
@@ -403,9 +430,12 @@ This specification outlines the core functionality and design of the chat applic
         window.addEventListener('load', () => {
             initializePeer();
             
-            // Add event listener for shareword input
-            const sharewordInput = document.getElementById('sharewordInput');
-            sharewordInput.addEventListener('change', handleSharewordChange);
+            // Add event listener for form submission
+            const chatForm = document.getElementById('chatForm');
+            chatForm.addEventListener('submit', handleSharewordSubmit);
+
+            // Disable copy link button initially
+            document.getElementById('copyLinkBtn').disabled = true;
         });
 
         // Re-initialize peer when custom ID changes
@@ -778,7 +808,8 @@ This specification outlines the core functionality and design of the chat applic
         });
 
         // Add this function to handle shareword input changes
-        function handleSharewordChange() {
+        function handleSharewordSubmit(event) {
+            event.preventDefault();
             const sharewordInput = document.getElementById('sharewordInput');
             const shareword = sharewordInput.value.trim();
             
