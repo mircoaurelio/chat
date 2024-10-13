@@ -296,24 +296,25 @@ This specification outlines the core functionality and design of the chat applic
         let customPeerId = '';
 
         function initializePeer() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlWord = urlParams.get('i');
-            const customIdInput = document.getElementById('customPeerId');
-            
-            if (urlWord) {
-                customIdInput.value = urlWord;
-            }
-            
-            const customId = customIdInput.value.trim();
+            const customId = document.getElementById('customPeerId').value.trim();
             customPeerId = customId || generateRandomId();
             
-            peer = customId ? new Peer(customId) : new Peer();
+            const urlParams = new URLSearchParams(window.location.search);
+            const initiatorId = urlParams.get('i');
+            
+            if (initiatorId) {
+                isInitiator = false;
+                peer = new Peer();
+            } else {
+                isInitiator = true;
+                peer = customId ? new Peer(customId) : new Peer();
+            }
             
             peer.on('open', (id) => {
                 myPeerId = id;
                 document.getElementById('myId').textContent = id;
                 chatId = urlParams.get('chatId');
-                const peerId = urlParams.get('peerId');
+                const peerId = urlParams.get('peerId') || initiatorId;
                 
                 log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
 
@@ -324,11 +325,9 @@ This specification outlines the core functionality and design of the chat applic
                         connectToPeer(peerId);
                     } else if (peerId) {
                         log('New connection as receiver');
-                        isInitiator = false;
                         connectToPeer(peerId);
                     } else {
                         log('New chat as initiator');
-                        isInitiator = true;
                         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
                         document.getElementById('copyLinkBtn').style.display = 'inline-block';
                         setupCopyLinkButton(id);
@@ -395,11 +394,18 @@ This specification outlines the core functionality and design of the chat applic
 
             copyLinkBtn.addEventListener('click', () => {
                 const currentUrl = new URL(window.location.href);
-                if (customPeerId) {
-                    currentUrl.searchParams.set('i', customPeerId);
+                const customId = document.getElementById('customPeerId').value.trim();
+                
+                if (customId) {
+                    if (isInitiator) {
+                        currentUrl.searchParams.set('i', customId);
+                    } else {
+                        currentUrl.searchParams.set('peerId', customId);
+                    }
                 } else {
                     currentUrl.searchParams.set('peerId', id);
                 }
+                
                 const fullUrl = currentUrl.toString();
 
                 navigator.clipboard.writeText(fullUrl).then(() => {
@@ -605,10 +611,10 @@ This specification outlines the core functionality and design of the chat applic
         function updateUrlWithChatIdAndPeerId(chatId, peerId) {
             const url = new URL(window.location.href);
             url.searchParams.set('chatId', chatId);
-            if (customPeerId) {
-                url.searchParams.set('i', customPeerId);
+            if (isInitiator) {
+                url.searchParams.set('i', customPeerId || peerId);
             } else {
-                url.searchParams.set('peerId', peerId);
+                url.searchParams.set('peerId', customPeerId || peerId);
             }
             window.history.replaceState({}, '', url);
         }
