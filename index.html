@@ -229,8 +229,8 @@ This specification outlines the core functionality and design of the chat applic
         
         <p id="loadingMessage">...</p>
         <div class="input-group mb-3">
-            <input type="text" id="customIdInput" class="form-control" placeholder="Enter custom ID (optional)">
-            <button id="generatePeerId" class="btn btn-primary">Generate Peer ID</button>
+            <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
+            <button id="generatePeerId" class="btn btn-primary">Generate ID</button>
         </div>
         <button id="copyLinkBtn" class="btn btn-success btn-round" style="display: none;">Copy Chat Link</button>
         <p id="copyStatus" class="mt-2"></p>
@@ -296,10 +296,8 @@ This specification outlines the core functionality and design of the chat applic
         let systemMessageCooldown = false;
 
         function initializePeer(customId = null) {
-            if (peer) {
-                peer.destroy();
-            }
-            peer = new Peer(customId);
+            const peerOptions = customId ? { id: customId } : {};
+            peer = new Peer(peerOptions);
 
             peer.on('open', (id) => {
                 myPeerId = id;
@@ -379,12 +377,35 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         document.getElementById('generatePeerId').addEventListener('click', () => {
-            const customIdInput = document.getElementById('customIdInput');
-            const customId = customIdInput.value.trim() || null;
-            initializePeer(customId);
+            const customId = document.getElementById('customPeerId').value.trim();
+            if (peer) {
+                peer.destroy();
+            }
+            initializePeer(customId || null);
         });
 
-        // Initialize peer with null to start
+        function setupCopyLinkButton(id) {
+            const copyLinkBtn = document.getElementById('copyLinkBtn');
+            const copyStatus = document.getElementById('copyStatus');
+
+            copyLinkBtn.addEventListener('click', () => {
+                const currentUrl = new URL(window.location.href);
+                currentUrl.searchParams.set('peerId', id);
+                const fullUrl = currentUrl.toString();
+
+                navigator.clipboard.writeText(fullUrl).then(() => {
+                    copyStatus.textContent = 'Link copied to clipboard!';
+                    setTimeout(() => {
+                        copyStatus.textContent = '';
+                    }, 3000);
+                }, (err) => {
+                    console.error('Could not copy text: ', err);
+                    copyStatus.textContent = 'Failed to copy link. Please try again.';
+                });
+            });
+        }
+
+        // Initialize peer with random ID on page load
         initializePeer();
 
         // Add this function to create and play sounds
@@ -550,27 +571,6 @@ This specification outlines the core functionality and design of the chat applic
             
             chatArea.appendChild(messageElement);
             chatArea.scrollTop = chatArea.scrollHeight;
-        }
-
-        function setupCopyLinkButton(id) {
-            const copyLinkBtn = document.getElementById('copyLinkBtn');
-            const copyStatus = document.getElementById('copyStatus');
-
-            copyLinkBtn.addEventListener('click', () => {
-                const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('peerId', id);
-                const fullUrl = currentUrl.toString();
-
-                navigator.clipboard.writeText(fullUrl).then(() => {
-                    copyStatus.textContent = 'Link copied to clipboard!';
-                    setTimeout(() => {
-                        copyStatus.textContent = '';
-                    }, 3000);
-                }, (err) => {
-                    console.error('Could not copy text: ', err);
-                    copyStatus.textContent = 'Failed to copy link. Please try again.';
-                });
-            });
         }
 
         function showChatInterface() {
