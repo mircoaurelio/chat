@@ -288,12 +288,36 @@ This specification outlines the core functionality and design of the chat applic
 
         let peer;
         let conn;
+        let chatId;
         let myPeerId;
         let isInitiator = false;
         let localStream;
         let remoteStream;
         let mediaConnection;
+        let systemMessageCooldown = false;
         let customPeerId = '';
+
+        // Add the call event listener here, outside of any other function
+        peer.on('call', async (call) => {
+            displayMessage('Incoming video call...', 'system');
+            try {
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('localVideo').srcObject = localStream;
+                call.answer(localStream);
+                setupMediaConnection(call);
+                document.getElementById('videoCallContainer').style.display = 'flex';
+                document.getElementById('startCallBtn').style.display = 'none';
+                document.getElementById('endCallBtn').style.display = 'inline-block';
+                displayMessage('Video call connected', 'system');
+            } catch (err) {
+                console.error('Failed to get local stream', err);
+                displayMessage('Failed to answer video call. Please check your camera and microphone permissions.', 'system');
+                call.close();
+            }
+        });
 
         function initializePeer() {
             const urlParams = new URLSearchParams(window.location.search);
@@ -348,13 +372,14 @@ This specification outlines the core functionality and design of the chat applic
                 setupConnection();
                 showChatInterface();
                 
+                if (isInitiator && !chatId) {
+                    chatId = generateChatId();
+                    updateUrlWithChatIdAndPeerId(chatId, myPeerId);
+                    conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+                }
+                
                 log('Your friend has joined the chat!');
                 displayMessage('Your friend has joined the chat!', 'system');
-                
-                peer.on('call', (call) => {
-                    displayMessage('Incoming video call...', 'system');
-                    showIncomingCallUI(call);
-                });
             });
         }
 
@@ -734,27 +759,6 @@ This specification outlines the core functionality and design of the chat applic
                 return false;
             }
         }
-
-        peer.on('call', async (call) => {
-            displayMessage('Incoming video call...', 'system');
-            try {
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                }
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('localVideo').srcObject = localStream;
-                call.answer(localStream);
-                setupMediaConnection(call);
-                document.getElementById('videoCallContainer').style.display = 'flex';
-                document.getElementById('startCallBtn').style.display = 'none';
-                document.getElementById('endCallBtn').style.display = 'inline-block';
-                displayMessage('Video call connected', 'system');
-            } catch (err) {
-                console.error('Failed to get local stream', err);
-                displayMessage('Failed to answer video call. Please check your camera and microphone permissions.', 'system');
-                call.close();
-            }
-        });
 
         // Add this function to handle shareword input changes
         function handleSharewordChange() {
