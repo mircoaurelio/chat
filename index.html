@@ -142,11 +142,26 @@ This specification outlines the core functionality and design of the chat applic
             justify-content: center;
             z-index: 1000;
         }
-        #localVideo, #remoteVideo {
-            width: 320px;
-            height: 240px;
-            margin-bottom: 10px;
-            background-color: #000;
+        #remoteVideoWrapper {
+            width: 80%;
+            height: 80%;
+            position: relative;
+        }
+        #localVideoWrapper {
+            width: 20%;
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+        }
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        #localVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
         }
         #endCallBtn {
             margin-top: 10px;
@@ -450,17 +465,13 @@ This specification outlines the core functionality and design of the chat applic
                 messageElement.textContent = message;
                 messageElement.classList.add('system');
                 
-                if (className === 'system' && !systemMessageCooldown) {
-                    systemMessageCooldown = true;
+                setTimeout(() => {
+                    messageElement.style.opacity = '0';
+                    messageElement.style.transition = 'opacity 1s';
                     setTimeout(() => {
-                        messageElement.style.opacity = '0';
-                        messageElement.style.transition = 'opacity 1s';
-                        setTimeout(() => {
-                            chatArea.removeChild(messageElement);
-                        }, 1000);
-                        systemMessageCooldown = false;
-                    }, 5000);
-                }
+                        chatArea.removeChild(messageElement);
+                    }, 1000);
+                }, 20000); // 20 seconds before fading
             } else if (message.type === 'text') {
                 messageElement.textContent = message.content;
             } else if (message.type === 'image') {
@@ -621,6 +632,13 @@ This specification outlines the core functionality and design of the chat applic
                 const remoteVideo = document.getElementById('remoteVideo');
                 remoteVideo.srcObject = remoteStream;
                 remoteVideo.play().catch(e => console.error('Error playing remote video:', e));
+                
+                // Adjust video sizes
+                document.getElementById('remoteVideoWrapper').style.width = '80%';
+                document.getElementById('localVideoWrapper').style.width = '20%';
+                document.getElementById('localVideoWrapper').style.position = 'absolute';
+                document.getElementById('localVideoWrapper').style.bottom = '10px';
+                document.getElementById('localVideoWrapper').style.right = '10px';
             });
 
             call.on('close', () => {
