@@ -161,37 +161,6 @@ This specification outlines the core functionality and design of the chat applic
             padding: 10px 20px;
             border-radius: 5px;
             z-index: 2000;
-            transition: opacity 0.5s ease-out;
-        }
-        #remoteVideoWrapper {
-            width: 100%;
-            height: calc(100% - 80px);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        #localVideoWrapper {
-            position: absolute;
-            bottom: 80px;
-            right: 20px;
-            width: 100px;  /* Reduced from 120px */
-            height: 75px;  /* Reduced from 90px */
-            border: 2px solid white;
-            overflow: hidden;
-        }
-        #remoteVideo {
-            max-width: 100%;
-            max-height: 100%;
-            object-fit: contain;
-        }
-        #localVideo {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-        #startCallBtn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
         }
     </style>
 </head>
@@ -259,7 +228,7 @@ This specification outlines the core functionality and design of the chat applic
         let localStream;
         let remoteStream;
         let mediaConnection;
-        let callCooldown = false;
+        let systemMessageCooldown = false;
 
         // Add this function to create and play sounds
         function createAndPlaySound(frequency, duration) {
@@ -293,39 +262,9 @@ This specification outlines the core functionality and design of the chat applic
             const notificationArea = document.getElementById('notificationArea');
             notificationArea.textContent = message;
             notificationArea.style.display = 'block';
-            notificationArea.style.opacity = '1';
-            
             setTimeout(() => {
-                let opacity = 1;
-                const fadeInterval = setInterval(() => {
-                    if (opacity <= 0) {
-                        clearInterval(fadeInterval);
-                        notificationArea.style.display = 'none';
-                    } else {
-                        opacity -= 0.1;
-                        notificationArea.style.opacity = opacity;
-                    }
-                }, 50);
-            }, duration - 500);
-        }
-
-        function startCooldown() {
-            callCooldown = true;
-            const startCallBtn = document.getElementById('startCallBtn');
-            startCallBtn.disabled = true;
-            let cooldownTime = 20;
-
-            const cooldownInterval = setInterval(() => {
-                cooldownTime--;
-                startCallBtn.textContent = `📞 (${cooldownTime})`;
-
-                if (cooldownTime <= 0) {
-                    clearInterval(cooldownInterval);
-                    callCooldown = false;
-                    startCallBtn.disabled = false;
-                    startCallBtn.textContent = '📞';
-                }
-            }, 1000);
+                notificationArea.style.display = 'none';
+            }, duration);
         }
 
         peer.on('open', (id) => {
@@ -460,6 +399,10 @@ This specification outlines the core functionality and design of the chat applic
                 log(`Received data: ${JSON.stringify(data)}`);
                 if (data.type === 'chatId') {
                     handleChatIdMessage(data.chatId, data.initiatorId);
+                } else if (data.type === 'prepareForCall') {
+                    displayMessage('Incoming video call...', 'system');
+                } else if (data.type === 'endCall') {
+                    endVideoCall(false);
                 } else {
                     displayMessage(data, 'friend');
                     playSound('receive');
@@ -506,6 +449,18 @@ This specification outlines the core functionality and design of the chat applic
                 // Handle system messages
                 messageElement.textContent = message;
                 messageElement.classList.add('system');
+                
+                if (className === 'system' && !systemMessageCooldown) {
+                    systemMessageCooldown = true;
+                    setTimeout(() => {
+                        messageElement.style.opacity = '0';
+                        messageElement.style.transition = 'opacity 1s';
+                        setTimeout(() => {
+                            chatArea.removeChild(messageElement);
+                        }, 1000);
+                        systemMessageCooldown = false;
+                    }, 5000);
+                }
             } else if (message.type === 'text') {
                 messageElement.textContent = message.content;
             } else if (message.type === 'image') {
@@ -617,7 +572,9 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add this function to start a video call
         async function startVideoCall() {
-            if (callCooldown) return;
+            if (!(await requestMediaPermissions())) {
+                return;
+            }
 
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
@@ -629,16 +586,15 @@ This specification outlines the core functionality and design of the chat applic
                 setupMediaConnection(mediaConnection);
 
                 conn.send({ type: 'prepareForCall' });
-                showNotification('Video call started');
-                startCooldown();
+                displayMessage('Video call started', 'system');
             } catch (err) {
-                console.error('Failed to get local stream', err);
-                showNotification('Failed to start video call. Please check your camera and microphone permissions.', 5000);
+                console.error('Failed to start video call:', err);
+                showNotification('Failed to start video call. Please check your camera and microphone.', 5000);
             }
         }
 
         // Add this function to end a video call
-        function endVideoCall() {
+        function endVideoCall(isInitiator = true) {
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
             }
@@ -649,8 +605,13 @@ This specification outlines the core functionality and design of the chat applic
             document.getElementById('remoteVideo').srcObject = null;
             document.getElementById('videoCallContainer').style.display = 'none';
             document.getElementById('startCallBtn').style.display = 'inline-block';
-            showNotification('Video call ended');
-            startCooldown();
+            
+            if (isInitiator) {
+                conn.send({ type: 'endCall' });
+                displayMessage('You ended the video call', 'system');
+            } else {
+                displayMessage('Your friend ended the video call', 'system');
+            }
         }
 
         // Add this function to set up the media connection
@@ -664,19 +625,49 @@ This specification outlines the core functionality and design of the chat applic
 
             call.on('close', () => {
                 console.log('Call closed');
-                endVideoCall();
+                endVideoCall(false);
             });
 
             call.on('error', (err) => {
                 console.error('Call error:', err);
                 showNotification('An error occurred during the call. Please try again.', 5000);
-                endVideoCall();
+                endVideoCall(false);
             });
         }
 
         // Add event listeners for video call buttons
         document.getElementById('startCallBtn').addEventListener('click', startVideoCall);
-        document.getElementById('endCallBtn').addEventListener('click', endVideoCall);
+        document.getElementById('endCallBtn').addEventListener('click', () => endVideoCall(true));
+
+        async function requestMediaPermissions() {
+            try {
+                await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                return true;
+            } catch (err) {
+                console.error('Failed to get media permissions:', err);
+                showNotification('Please grant camera and microphone permissions for video calls.', 5000);
+                return false;
+            }
+        }
+
+        peer.on('call', async (call) => {
+            if (await requestMediaPermissions()) {
+                try {
+                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    document.getElementById('localVideo').srcObject = localStream;
+                    call.answer(localStream);
+                    setupMediaConnection(call);
+                    document.getElementById('videoCallContainer').style.display = 'flex';
+                    document.getElementById('startCallBtn').style.display = 'none';
+                    displayMessage('Video call connected', 'system');
+                } catch (err) {
+                    console.error('Failed to get local stream', err);
+                    showNotification('Failed to answer video call. Please check your camera and microphone.', 5000);
+                }
+            } else {
+                call.close();
+            }
+        });
     </script>
  
 </body>
