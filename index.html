@@ -188,6 +188,11 @@
 
         function log(message) {
             console.log(message);
+            const logArea = document.getElementById('logArea');
+            if (logArea) {
+                logArea.innerHTML += `<p>${new Date().toLocaleTimeString()} - ${message}</p>`;
+                logArea.scrollTop = logArea.scrollHeight;
+            }
         }
 
         function createAndPlaySound(frequency, duration) {
@@ -240,21 +245,18 @@
 
         function initializePeer(secretWord) {
             const peerId = generatePeerId(secretWord);
-            peer = new Peer(peerId);
+            log(`Initializing peer with ID: ${peerId}`);
+            
+            peer = new Peer(peerId, {
+                debug: 2
+            });
 
             peer.on('open', (id) => {
                 myPeerId = id;
                 document.getElementById('myId').textContent = id;
                 log(`Peer opened. My ID: ${id}`);
                 showChatInterface();
-                connectToPeer(peerId);
-            });
-
-            peer.on('connection', (connection) => {
-                conn = connection;
-                setupConnection();
-                log('Your friend has joined the chat!');
-                displayMessage('Your friend has joined the chat!', 'system');
+                listenForConnection();
             });
 
             peer.on('error', (err) => {
@@ -263,18 +265,22 @@
             });
         }
 
+        function listenForConnection() {
+            log('Listening for incoming connections...');
+            peer.on('connection', (connection) => {
+                log('Incoming connection detected');
+                conn = connection;
+                setupConnection();
+            });
+
+            // Also try to connect to a peer with the same ID
+            connectToPeer(myPeerId);
+        }
+
         function connectToPeer(peerId) {
             log(`Attempting to connect to peer: ${peerId}`);
-            if (peerId !== myPeerId) {
-                if (conn) {
-                    conn.close();
-                }
-                conn = peer.connect(peerId, { reliable: true });
-                setupConnection();
-            } else {
-                log('Waiting for connection from other peer...');
-                displayMessage('Waiting for your friend to join...', 'system');
-            }
+            conn = peer.connect(peerId, { reliable: true });
+            setupConnection();
         }
 
         function setupConnection() {
@@ -284,7 +290,7 @@
             }
 
             conn.on('open', () => {
-                log('Connected to peer');
+                log('Connection opened');
                 displayMessage('Connected to peer', 'system');
             });
             
@@ -492,6 +498,11 @@
             }
         }
 
+        // Add this to the HTML body
+        const logArea = document.createElement('div');
+        logArea.id = 'logArea';
+        logArea.style.cssText = 'position: fixed; bottom: 10px; right: 10px; width: 300px; height: 200px; overflow-y: scroll; background: white; border: 1px solid #ccc; padding: 10px; font-size: 12px;';
+        document.body.appendChild(logArea);
     </script>
  
 </body>
