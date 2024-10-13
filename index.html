@@ -255,27 +255,6 @@
                 setupConnection();
                 log('Your friend has joined the chat!');
                 displayMessage('Your friend has joined the chat!', 'system');
-                
-                peer.on('call', (call) => {
-                    if (confirm('Incoming video call. Do you want to answer?')) {
-                        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                            .then((stream) => {
-                                localStream = stream;
-                                document.getElementById('localVideo').srcObject = stream;
-                                call.answer(stream);
-                                setupMediaConnection(call);
-                                document.getElementById('videoCallContainer').style.display = 'block';
-                                document.getElementById('startCallBtn').style.display = 'none';
-                                document.getElementById('endCallBtn').style.display = 'inline-block';
-                            })
-                            .catch((err) => {
-                                console.error('Failed to get local stream', err);
-                                alert('Failed to answer video call. Please check your camera and microphone permissions.');
-                            });
-                    } else {
-                        call.close();
-                    }
-                });
             });
 
             peer.on('error', (err) => {
@@ -285,15 +264,25 @@
         }
 
         function connectToPeer(peerId) {
-            log(`Connecting to peer: ${peerId}`);
-            if (conn) {
-                conn.close();
+            log(`Attempting to connect to peer: ${peerId}`);
+            if (peerId !== myPeerId) {
+                if (conn) {
+                    conn.close();
+                }
+                conn = peer.connect(peerId, { reliable: true });
+                setupConnection();
+            } else {
+                log('Waiting for connection from other peer...');
+                displayMessage('Waiting for your friend to join...', 'system');
             }
-            conn = peer.connect(peerId, { reliable: true });
-            setupConnection();
         }
 
         function setupConnection() {
+            if (!conn) {
+                log('Connection not established');
+                return;
+            }
+
             conn.on('open', () => {
                 log('Connected to peer');
                 displayMessage('Connected to peer', 'system');
