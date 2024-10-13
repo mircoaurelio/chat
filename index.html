@@ -172,6 +172,7 @@ This specification outlines the core functionality and design of the chat applic
         #remoteVideo, #localVideo {
             width: 100%;
             height: 100%;
+            max-height: 95vh;
             object-fit: cover;
         }
         #endCallBtn {
@@ -221,7 +222,7 @@ This specification outlines the core functionality and design of the chat applic
             <button id="endCallBtn" class="btn btn-danger">End Call</button>
         </div>
         <div id="adBox">
-             0.158
+             0.146
         </div>
     </div>
     <div id="notificationArea" style="display: none;"></div>
@@ -238,7 +239,7 @@ This specification outlines the core functionality and design of the chat applic
             console.log(message); // Also log to console for desktop debugging
         }
 
-        const peer = new Peer();
+        let peer;
         let conn;
         let chatId;
         let myPeerId;
@@ -247,6 +248,99 @@ This specification outlines the core functionality and design of the chat applic
         let remoteStream;
         let mediaConnection;
         let systemMessageCooldown = false;
+        let isPageHidden = false;
+
+        function initializePeer() {
+            peer = new Peer();
+
+            peer.on('open', (id) => {
+                myPeerId = id;
+                document.getElementById('myId').textContent = id;
+                const urlParams = new URLSearchParams(window.location.search);
+                chatId = urlParams.get('chatId');
+                const peerId = urlParams.get('peerId');
+                
+                log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
+
+                // Delay the connection attempt to ensure PeerJS is fully initialized
+                setTimeout(() => {
+                    if (chatId && peerId) {
+                        log('Reconnecting to existing chat');
+                        connectToPeer(peerId);
+                    } else if (peerId) {
+                        log('New connection as receiver');
+                        isInitiator = false;
+                        connectToPeer(peerId);
+                    } else {
+                        log('New chat as initiator');
+                        isInitiator = true;
+                        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+                        document.getElementById('copyLinkBtn').style.display = 'inline-block';
+                        setupCopyLinkButton(id);
+                    }
+                }, 1000); // 1 second delay
+            });
+
+            // ... rest of the peer event handlers ...
+        }
+
+        function connectToPeer(peerId) {
+            log(`Connecting to peer: ${peerId}`);
+            if (conn) {
+                conn.close();
+            }
+            conn = peer.connect(peerId, { reliable: true });
+            setupConnection();
+            
+            // Enhanced retry mechanism
+            let retryCount = 0;
+            const maxRetries = 100; // Increased number of retries
+            const retryInterval = 1000; // Reduced interval to 1 second
+
+            function retryConnection() {
+                if (retryCount < maxRetries && !conn.open && !isPageHidden) {
+                    retryCount++;
+                    log(`Retry attempt ${retryCount}`);
+                    conn = peer.connect(peerId, { reliable: true });
+                    setupConnection();
+                    setTimeout(retryConnection, retryInterval);
+                } else if (retryCount >= maxRetries) {
+                    log('Max retries reached. Unable to connect.');
+                    displayMessage('Unable to connect. Please try again later.', 'system');
+                }
+            }
+
+            // Start the retry process if the initial connection fails
+            setTimeout(() => {
+                if (!conn.open && !isPageHidden) {
+                    retryConnection();
+                }
+            }, retryInterval);
+        }
+
+        // Add event listeners for page visibility
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
+        function handleVisibilityChange() {
+            if (document.hidden) {
+                isPageHidden = true;
+                log('Page is now hidden');
+            } else {
+                isPageHidden = false;
+                log('Page is now visible');
+                if (peer && !peer.disconnected) {
+                    log('Peer is still connected');
+                } else {
+                    log('Peer is disconnected, reinitializing');
+                    initializePeer();
+                }
+            }
+        }
+
+        // Call initializePeer when the page loads
+        window.addEventListener('load', initializePeer);
+
+        // ... rest of your existing code ...
 
         // Add this function to create and play sounds
         function createAndPlaySound(frequency, duration) {
@@ -285,46 +379,6 @@ This specification outlines the core functionality and design of the chat applic
             }, duration);
         }
 
-        peer.on('open', (id) => {
-            myPeerId = id;
-            document.getElementById('myId').textContent = id;
-            const urlParams = new URLSearchParams(window.location.search);
-            chatId = urlParams.get('chatId');
-            const peerId = urlParams.get('peerId');
-            
-            log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
-
-            // Delay the connection attempt to ensure PeerJS is fully initialized
-            setTimeout(() => {
-                if (chatId && peerId) {
-                    log('Reconnecting to existing chat');
-                    connectToPeer(peerId);
-                } else if (peerId) {
-                    log('New connection as receiver');
-                    isInitiator = false;
-                    connectToPeer(peerId);
-                } else {
-                    log('New chat as initiator');
-                    isInitiator = true;
-                    document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-                    document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                    setupCopyLinkButton(id);
-                }
-            }, 1000); // 1 second delay
-
-            // Replace setInterval with a more battery-friendly approach
-            let lastCheckTime = Date.now();
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) {
-                    const now = Date.now();
-                    if (now - lastCheckTime > 5000) {
-                        checkConnectionStatus();
-                        lastCheckTime = now;
-                    }
-                }
-            });
-        });
-
         peer.on('connection', (connection) => {
             conn = connection;
             setupConnection();
@@ -360,44 +414,6 @@ This specification outlines the core functionality and design of the chat applic
                 }
             });
         });
-
-        function connectToPeer(peerId) {
-            log(`Connecting to peer: ${peerId}`);
-            if (conn) {
-                conn.close();
-            }
-            conn = peer.connect(peerId, { reliable: true });
-            setupConnection();
-            
-            // Enhanced retry mechanism
-            let retryCount = 0;
-            const maxRetries = 100; // Increased number of retries
-            const retryInterval = 1000; // Reduced interval to 3 seconds
-
-            function retryConnection() {
-                if (retryCount < maxRetries) {
-                    retryCount++;
-                    log(`Retry attempt ${retryCount}`);
-                    conn = peer.connect(peerId, { reliable: true });
-                    setupConnection();
-                    setTimeout(() => {
-                        if (!conn.open) {
-                            retryConnection();
-                        }
-                    }, retryInterval);
-                } else {
-                    log('Max retries reached. Unable to connect.');
-                    displayMessage('Unable to connect. Please try again later.', 'system');
-                }
-            }
-
-            // Start the retry process if the initial connection fails
-            setTimeout(() => {
-                if (!conn.open) {
-                    retryConnection();
-                }
-            }, retryInterval);
-        }
 
         function setupConnection() {
             hideReconnectButton();
