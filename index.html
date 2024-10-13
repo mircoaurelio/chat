@@ -317,12 +317,8 @@ This specification outlines the core functionality and design of the chat applic
 
             // Delay the connection attempt to ensure PeerJS is fully initialized
             setTimeout(() => {
-                if (chatId && sharedWord) {
-                    log('Reconnecting to existing chat');
-                    connectToPeer(generateHash(sharedWord));
-                } else if (sharedWord) {
-                    log('New connection as receiver');
-                    isInitiator = false;
+                if (sharedWord) {
+                    log('Connecting to chat using shared word');
                     connectToPeer(generateHash(sharedWord));
                 } else {
                     log('New chat as initiator');
@@ -395,7 +391,7 @@ This specification outlines the core functionality and design of the chat applic
             // Enhanced retry mechanism
             let retryCount = 0;
             const maxRetries = 100; // Increased number of retries
-            const retryInterval = 1000; // Reduced interval to 3 seconds
+            const retryInterval = 1000; // Reduced interval to 1 second
 
             function retryConnection() {
                 if (retryCount < maxRetries) {
@@ -411,6 +407,7 @@ This specification outlines the core functionality and design of the chat applic
                 } else {
                     log('Max retries reached. Unable to connect.');
                     displayMessage('Unable to connect. Please try again later.', 'system');
+                    showReconnectButton();
                 }
             }
 
@@ -430,10 +427,11 @@ This specification outlines the core functionality and design of the chat applic
                 displayMessage('Connected to peer', 'system');
                 showChatInterface();
                 
-                if (chatId && isInitiator) {
-                    log('Sending chat ID to peer');
-                    conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+                if (!chatId) {
+                    chatId = generateChatId();
+                    updateUrlWithChatIdAndWord(chatId, sharedWord);
                 }
+                conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
             });
             
             conn.on('data', (data) => {
@@ -562,6 +560,24 @@ This specification outlines the core functionality and design of the chat applic
             url.searchParams.set('chatId', chatId);
             url.searchParams.set('word', word);
             window.history.replaceState({}, '', url);
+            
+            // Update the copy link button with the new URL
+            const copyLinkBtn = document.getElementById('copyLinkBtn');
+            if (copyLinkBtn) {
+                copyLinkBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(url.toString()).then(() => {
+                        const copyStatus = document.getElementById('copyStatus');
+                        copyStatus.textContent = 'Link copied to clipboard!';
+                        setTimeout(() => {
+                            copyStatus.textContent = '';
+                        }, 3000);
+                    }, (err) => {
+                        console.error('Could not copy text: ', err);
+                        const copyStatus = document.getElementById('copyStatus');
+                        copyStatus.textContent = 'Failed to copy link. Please try again.';
+                    });
+                });
+            }
         }
 
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
