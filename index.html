@@ -62,7 +62,7 @@ This specification outlines the core functionality and design of the chat applic
         body {
             display: flex;
             flex-direction: column;
-            background-color: #FFF3E0; /* Light orange background */
+            background-color: #f0f2f5;
         }
         .chat-container {
             flex-grow: 1;
@@ -70,16 +70,11 @@ This specification outlines the core functionality and design of the chat applic
             flex-direction: column;
             background-color: #fff;
         }
-        .btn-primary {
-            background-color: #FF9800; /* Orange */
-            border-color: #FF9800;
-        }
-        .btn-primary:hover {
-            background-color: #F57C00; /* Darker orange on hover */
-            border-color: #F57C00;
+        .btn-primary{
+            background-color: orange;
         }
         .chat-header {
-            background-color: #FF5722; /* Deep orange */
+            background-color: #075e54;
             color: white;
             padding: 10px 15px;
         }
@@ -87,7 +82,7 @@ This specification outlines the core functionality and design of the chat applic
             flex-grow: 1;
             overflow-y: auto;
             padding: 15px;
-            background-color: #FFE0B2; /* Very light orange */
+            background-color: #e5ddd5;
         }
         .message {
             max-width: 80%;
@@ -103,13 +98,13 @@ This specification outlines the core functionality and design of the chat applic
             clear: both;
         }
         .message.you {
-            background-color: #FFCC80; /* Light orange */
+            background-color: #dcf8c6;
             float: right;
             clear: both;
         }
         .message.system {
-            background-color: #FFE0B2; /* Very light orange */
-            color: #E65100; /* Dark orange */
+            background-color: #ffe6cc;
+            color: #856404;
             text-align: center;
             clear: both;
             float: none;
@@ -119,20 +114,20 @@ This specification outlines the core functionality and design of the chat applic
             font-size: 0.9em;
         }
         .message-input {
-            background-color: #FFF3E0; /* Light orange background */
+            background-color: #f0f0f0;
             padding: 10px;
         }
         #copyLinkBtn {
-            background-color: #FF9800; /* Orange */
-            border-color: #FF9800;
+            background-color: #128c7e;
+            border-color: #128c7e;
         }
         #copyStatus {
             font-size: 0.8em;
-            color: #FF5722; /* Deep orange */
+            color: #4caf50;
         }
         #adBox {
-            background-color: #FFF3E0; /* Light orange background */
-            border: 1px solid #FFE0B2;
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
             padding: 10px;
             text-align: center;
             font-style: italic;
@@ -166,7 +161,7 @@ This specification outlines the core functionality and design of the chat applic
             overflow: hidden;
             margin: auto;
         }
-        .btn-round {
+        .btn-round{
             border-radius: 22px;
         }
         #localVideoWrapper {
@@ -195,25 +190,6 @@ This specification outlines the core functionality and design of the chat applic
             margin-top: 10px;
             z-index: 1001;
         }
-        #messageInput {
-            border: 1px solid #FFE0B2; /* Very light orange border */
-        }
-        #messageInput:focus {
-            outline: none;
-            box-shadow: none;
-            border-color: #FF9800; /* Orange border on focus */
-        }
-        .transparent-btn {
-            background-color: transparent;
-            border: none;
-            color: #FF5722; /* Deep orange */
-            font-size: 1.2em;
-            padding: 0 10px;
-        }
-        .input-group {
-            display: flex;
-            align-items: center;
-        }
     </style>
 </head>
 <body>
@@ -237,10 +213,11 @@ This specification outlines the core functionality and design of the chat applic
             <div id="chatArea"></div>
             <div class="message-input">
                 <div class="input-group">
-                    <button id="startCallBtn" class="transparent-btn">📞</button>
-                    <button class="transparent-btn" onclick="document.getElementById('fileInput').click()">📷</button>
+                    <button class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">📷</button>
+                    <button id="startCallBtn" class="btn btn-success">📞</button>
                     <input type="text" id="messageInput" class="form-control" placeholder="Type a message">
                     <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                 
                     <button class="btn btn-primary btn-round" onclick="sendMessage()">Send</button>
                 </div>
             </div>
