@@ -244,6 +244,7 @@ This specification outlines the core functionality and design of the chat applic
             console.log(message); // Also log to console for desktop debugging
         }
 
+
         const peer = new Peer();
         let conn;
         let chatId;
@@ -253,8 +254,21 @@ This specification outlines the core functionality and design of the chat applic
         let remoteStream;
         let mediaConnection;
         let systemMessageCooldown = false;
+        let sharedWord = '';
 
-        // Add this function to create and play sounds
+        // Function to generate a hash from the shared word
+        function generateHash(word) {
+            let hash = 0;
+            for (let i = 0; i < word.length; i++) {
+                const char = word.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32-bit integer
+            }
+            return Math.abs(hash).toString(36);
+        }
+
+
+        // Function to create and play sounds
         function createAndPlaySound(frequency, duration) {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
@@ -273,7 +287,8 @@ This specification outlines the core functionality and design of the chat applic
             oscillator.stop(audioContext.currentTime + duration);
         }
 
-        // Update the playSound function
+
+        // Function to play sound
         function playSound(type) {
             if (type === 'send') {
                 createAndPlaySound(800, 0.1); // Higher pitch for sent messages
@@ -296,19 +311,19 @@ This specification outlines the core functionality and design of the chat applic
             document.getElementById('myId').textContent = id;
             const urlParams = new URLSearchParams(window.location.search);
             chatId = urlParams.get('chatId');
-            const peerId = urlParams.get('peerId');
+            sharedWord = urlParams.get('word');
             
-            log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Peer ID: ${peerId}`);
+            log(`Peer opened. My ID: ${id}, Chat ID: ${chatId}, Shared Word: ${sharedWord}`);
 
             // Delay the connection attempt to ensure PeerJS is fully initialized
             setTimeout(() => {
-                if (chatId && peerId) {
+                if (chatId && sharedWord) {
                     log('Reconnecting to existing chat');
-                    connectToPeer(peerId);
-                } else if (peerId) {
+                    connectToPeer(generateHash(sharedWord));
+                } else if (sharedWord) {
                     log('New connection as receiver');
                     isInitiator = false;
-                    connectToPeer(peerId);
+                    connectToPeer(generateHash(sharedWord));
                 } else {
                     log('New chat as initiator');
                     isInitiator = true;
@@ -331,6 +346,7 @@ This specification outlines the core functionality and design of the chat applic
             });
         });
 
+
         peer.on('connection', (connection) => {
             conn = connection;
             setupConnection();
@@ -338,7 +354,7 @@ This specification outlines the core functionality and design of the chat applic
             
             if (isInitiator && !chatId) {
                 chatId = generateChatId();
-                updateUrlWithChatIdAndPeerId(chatId, myPeerId);
+                updateUrlWithChatIdAndWord(chatId, sharedWord);
                 conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
             }
             
@@ -366,6 +382,7 @@ This specification outlines the core functionality and design of the chat applic
                 }
             });
         });
+
 
         function connectToPeer(peerId) {
             log(`Connecting to peer: ${peerId}`);
@@ -449,7 +466,7 @@ This specification outlines the core functionality and design of the chat applic
         function handleChatIdMessage(receivedChatId, initiatorId) {
             if (!chatId) {
                 chatId = receivedChatId;
-                updateUrlWithChatIdAndPeerId(chatId, initiatorId);
+                updateUrlWithChatIdAndWord(chatId, sharedWord);
             }
         }
 
@@ -499,9 +516,23 @@ This specification outlines the core functionality and design of the chat applic
             const copyLinkBtn = document.getElementById('copyLinkBtn');
             const copyStatus = document.getElementById('copyStatus');
 
+            // Add input for shared word
+            const wordInput = document.createElement('input');
+            wordInput.type = 'text';
+            wordInput.placeholder = 'Enter shared word';
+            wordInput.id = 'sharedWordInput';
+            copyLinkBtn.parentNode.insertBefore(wordInput, copyLinkBtn);
+
             copyLinkBtn.addEventListener('click', () => {
+                const enteredWord = wordInput.value.trim();
+                if (!enteredWord) {
+                    copyStatus.textContent = 'Please enter a shared word first.';
+                    return;
+                }
+
+                sharedWord = enteredWord;
                 const currentUrl = new URL(window.location.href);
-                currentUrl.searchParams.set('peerId', id);
+                currentUrl.searchParams.set('word', sharedWord);
                 const fullUrl = currentUrl.toString();
 
                 navigator.clipboard.writeText(fullUrl).then(() => {
@@ -526,10 +557,10 @@ This specification outlines the core functionality and design of the chat applic
             return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
         }
 
-        function updateUrlWithChatIdAndPeerId(chatId, peerId) {
+        function updateUrlWithChatIdAndWord(chatId, word) {
             const url = new URL(window.location.href);
             url.searchParams.set('chatId', chatId);
-            url.searchParams.set('peerId', peerId);
+            url.searchParams.set('word', word);
             window.history.replaceState({}, '', url);
         }
 
@@ -551,7 +582,7 @@ This specification outlines the core functionality and design of the chat applic
                 log('Connection lost');
                 displayMessage('Connection lost. Attempting to reconnect...', 'system');
                 if (chatId) {
-                    connectToPeer(conn.peer);
+                    connectToPeer(generateHash(sharedWord));
                 }
             }
         }
@@ -565,8 +596,8 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         document.getElementById('reconnectBtn').addEventListener('click', () => {
-            if (conn && conn.peer) {
-                connectToPeer(conn.peer);
+            if (sharedWord) {
+                connectToPeer(generateHash(sharedWord));
             }
         });
 
@@ -666,6 +697,7 @@ This specification outlines the core functionality and design of the chat applic
             
             displayMessage(isInitiator ? 'You ended the video call' : 'Your friend ended the video call', 'system');
         }
+
 
         // Add this function to set up the media connection
         function setupMediaConnection(call) {
