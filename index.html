@@ -182,6 +182,7 @@
         let peer;
         let conn;
         let myPeerId;
+        let roomId;
         let localStream;
         let remoteStream;
         let mediaConnection;
@@ -231,7 +232,7 @@
             }, duration);
         }
 
-        function generatePeerId(secretWord) {
+        function generateRoomId(secretWord) {
             return CryptoJS.SHA256(secretWord).toString(CryptoJS.enc.Hex).substr(0, 16);
         }
 
@@ -244,11 +245,11 @@
 
         document.addEventListener('DOMContentLoaded', (event) => {
             const role = getUrlParameter('role');
-            const secretWord = getUrlParameter('secret');
-            if (role === 'joiner' && secretWord) {
-                document.getElementById('secretWordInput').value = secretWord;
+            const secret = getUrlParameter('secret');
+            if (role === 'joiner' && secret) {
+                document.getElementById('secretWordInput').value = secret;
                 isInitiator = false;
-                initializePeer(secretWord);
+                initializePeer(secret);
             }
         });
 
@@ -263,10 +264,10 @@
         });
 
         function initializePeer(secretWord) {
-            const peerId = generatePeerId(secretWord);
-            log(`Initializing peer with ID: ${peerId}`);
+            roomId = generateRoomId(secretWord);
+            log(`Room ID: ${roomId}`);
             
-            peer = new Peer(peerId, {
+            peer = new Peer(null, {
                 debug: 2
             });
 
@@ -280,7 +281,7 @@
                     displayMessage('Waiting for someone to join...', 'system');
                     showShareLink(secretWord);
                 } else {
-                    connectToPeer(peerId);
+                    joinRoom(roomId);
                 }
             });
 
@@ -312,6 +313,20 @@
             linkInput.select();
             document.execCommand('copy');
             showNotification('Link copied to clipboard!', 3000);
+        }
+
+        function joinRoom(roomId) {
+            log(`Attempting to join room: ${roomId}`);
+            peer.listAllPeers((peers) => {
+                log(`Available peers: ${peers}`);
+                const roomPeer = peers.find(p => p.startsWith(roomId));
+                if (roomPeer) {
+                    connectToPeer(roomPeer);
+                } else {
+                    log('Room not found. Waiting for initiator...');
+                    displayMessage('Waiting for initiator...', 'system');
+                }
+            });
         }
 
         function connectToPeer(peerId) {
