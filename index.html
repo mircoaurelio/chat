@@ -155,6 +155,7 @@ This specification outlines the core functionality and design of the chat applic
             display: flex;
             justify-content: center;
             align-items: center;
+            overflow: hidden;
         }
         #localVideoWrapper {
             position: absolute;
@@ -220,7 +221,7 @@ This specification outlines the core functionality and design of the chat applic
             <button id="endCallBtn" class="btn btn-danger">End Call</button>
         </div>
         <div id="adBox">
-             0.146
+             0.158
         </div>
     </div>
     <div id="notificationArea" style="display: none;"></div>
@@ -611,6 +612,9 @@ This specification outlines the core functionality and design of the chat applic
             if (localStream) {
                 localStream.getTracks().forEach(track => track.stop());
             }
+            if (remoteStream) {
+                remoteStream.getTracks().forEach(track => track.stop());
+            }
             if (mediaConnection) {
                 mediaConnection.close();
             }
@@ -618,6 +622,10 @@ This specification outlines the core functionality and design of the chat applic
             document.getElementById('remoteVideo').srcObject = null;
             document.getElementById('videoCallContainer').style.display = 'none';
             document.getElementById('startCallBtn').style.display = 'inline-block';
+            
+            localStream = null;
+            remoteStream = null;
+            mediaConnection = null;
             
             if (isInitiator) {
                 conn.send({ type: 'endCall' });
@@ -629,16 +637,15 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add this function to set up the media connection
         function setupMediaConnection(call) {
-            call.on('stream', (remoteStream) => {
+            call.on('stream', (stream) => {
                 console.log('Received remote stream');
+                remoteStream = stream;
                 const remoteVideo = document.getElementById('remoteVideo');
                 remoteVideo.srcObject = remoteStream;
                 remoteVideo.play().catch(e => console.error('Error playing remote video:', e));
                 
-                // Adjust video sizes
                 document.getElementById('videoCallContainer').style.display = 'flex';
-                document.getElementById('remoteVideoWrapper').style.display = 'flex';
-                document.getElementById('localVideoWrapper').style.display = 'flex';
+                document.getElementById('startCallBtn').style.display = 'none';
             });
 
             call.on('close', () => {
