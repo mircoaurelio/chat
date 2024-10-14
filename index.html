@@ -266,13 +266,12 @@ This specification outlines the core functionality and design of the chat applic
             content: '\2713\2713';
             font-size: 0.8em;
             margin-left: 5px;
-            color: #34B7F1;
-            opacity: 0;
-            transition: opacity 0.3s ease;
+            color: #999; /* Light gray for unread messages */
+            opacity: 1; /* Make checks always visible */
         }
 
         .message.you.read::after {
-            opacity: 1;
+            color: #34B7F1; /* Blue for read messages */
         }
     </style>
 </head>
@@ -585,6 +584,8 @@ This specification outlines the core functionality and design of the chat applic
                     showTypingIndicator();
                 } else if (data.type === 'stopTyping') {
                     hideTypingIndicator();
+                } else if (data.type === 'messageReceived') {
+                    markMessageAsReceived(data.id);
                 } else if (data.type === 'messageRead') {
                     markMessageAsRead(data.id);
                 } else {
@@ -610,7 +611,7 @@ This specification outlines the core functionality and design of the chat applic
             });
         }
 
-        let lastMessageElement = null;
+        let lastMessageId = null;
 
         function displayMessage(message, className) {
             const chatArea = document.getElementById('chatArea');
@@ -631,21 +632,23 @@ This specification outlines the core functionality and design of the chat applic
                 }, 20000); // 20 seconds before fading
             } else if (message.type === 'text') {
                 messageElement.textContent = message.content;
+                messageElement.dataset.messageId = message.id;
             } else if (message.type === 'image') {
                 const img = document.createElement('img');
                 img.src = message.content;
                 img.style.maxWidth = '100%';
                 img.style.maxHeight = '200px';
                 messageElement.appendChild(img);
+                messageElement.dataset.messageId = message.id;
             }
             
             chatArea.appendChild(messageElement);
             chatArea.scrollTop = chatArea.scrollHeight;
 
-            if (className === 'you') {
-                lastMessageElement = messageElement;
+            if (className === 'friend') {
+                lastMessageId = message.id;
                 if (conn && conn.open) {
-                    conn.send({ type: 'messageRead', id: message.id });
+                    conn.send({ type: 'messageReceived', id: message.id });
                 }
             }
         }
@@ -931,11 +934,31 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        function markMessageAsRead(messageId) {
-            if (lastMessageElement && lastMessageElement.dataset.messageId === messageId) {
-                lastMessageElement.classList.add('read');
+        function markMessageAsReceived(messageId) {
+            const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+            if (messageElement) {
+                messageElement.classList.add('received');
             }
         }
+
+        function markMessageAsRead(messageId) {
+            const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+            if (messageElement) {
+                messageElement.classList.add('read');
+            }
+        }
+
+        // Add this function to send read receipts
+        function sendReadReceipt() {
+            if (lastMessageId && conn && conn.open) {
+                conn.send({ type: 'messageRead', id: lastMessageId });
+                lastMessageId = null;
+            }
+        }
+
+        // Add this event listener to send read receipts when the user interacts with the chat
+        document.getElementById('chatArea').addEventListener('click', sendReadReceipt);
+        document.getElementById('messageInput').addEventListener('focus', sendReadReceipt);
 
         document.getElementById('messageInput').addEventListener('input', function() {
             sendTypingStatus(true);
