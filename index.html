@@ -221,6 +221,43 @@ This specification outlines the core functionality and design of the chat applic
         .send-message-btn {
             background-color:#FF8C00  !important; /* Dark orange */
         }
+        .typing-indicator {
+            background-color: #e6e6e6;
+            border-radius: 50px;
+            padding: 10px;
+            display: none;
+            align-items: center;
+            width: fit-content;
+            margin: 10px;
+        }
+
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            background-color: #3b3b3b;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 1px;
+            opacity: 0.4;
+        }
+
+        .typing-indicator span:nth-child(1) {
+            animation: blink 1s infinite 0.3333s;
+        }
+
+        .typing-indicator span:nth-child(2) {
+            animation: blink 1s infinite 0.6666s;
+        }
+
+        .typing-indicator span:nth-child(3) {
+            animation: blink 1s infinite 0.9999s;
+        }
+
+        @keyframes blink {
+            50% {
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
@@ -245,7 +282,13 @@ This specification outlines the core functionality and design of the chat applic
                 <h5 class="mb-0">P2P Chat</h5>
                 <small><span id="myId"></span></small>
             </div>
-            <div id="chatArea"></div>
+            <div id="chatArea">
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
             <div class="message-input">
                 <div class="input-group">
                     <button id="photoinput" class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">📷</button>
@@ -296,6 +339,8 @@ This specification outlines the core functionality and design of the chat applic
         let mediaConnection;
         let systemMessageCooldown = false;
         let customPeerId = '';
+        let typingTimer;
+        const TYPING_TIMER_LENGTH = 3000; // 3 seconds
 
         // Add the call event listener here, outside of any other function
       
@@ -522,9 +567,14 @@ This specification outlines the core functionality and design of the chat applic
                     displayMessage('Incoming video call...', 'system');
                 } else if (data.type === 'endCall') {
                     endVideoCall(false);
+                } else if (data.type === 'typing') {
+                    showTypingIndicator();
+                } else if (data.type === 'stopTyping') {
+                    hideTypingIndicator();
                 } else {
                     displayMessage(data, 'friend');
                     playSound('receive');
+                    hideTypingIndicator();
                 }
             });
 
@@ -549,6 +599,8 @@ This specification outlines the core functionality and design of the chat applic
                 displayMessage({ type: 'text', content: message }, 'you');
                 messageInput.value = '';
                 playSound('send');
+                sendTypingStatus(false);
+                clearTimeout(typingTimer);
             }
         }
 
@@ -832,6 +884,26 @@ This specification outlines the core functionality and design of the chat applic
                 callUI.remove();
             }
         }
+
+        function showTypingIndicator() {
+            document.querySelector('.typing-indicator').style.display = 'flex';
+        }
+
+        function hideTypingIndicator() {
+            document.querySelector('.typing-indicator').style.display = 'none';
+        }
+
+        function sendTypingStatus(isTyping) {
+            if (conn && conn.open) {
+                conn.send({ type: isTyping ? 'typing' : 'stopTyping' });
+            }
+        }
+
+        document.getElementById('messageInput').addEventListener('input', function() {
+            sendTypingStatus(true);
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => sendTypingStatus(false), TYPING_TIMER_LENGTH);
+        });
     </script>
  
 </body>
