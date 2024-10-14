@@ -222,13 +222,16 @@ This specification outlines the core functionality and design of the chat applic
             background-color:#FF8C00  !important; /* Dark orange */
         }
         .typing-indicator {
-            background-color: #e6e6e6;
-            border-radius: 50px;
-            padding: 10px;
+            background-color: #fff;
+            border-radius: 7px;
+            padding: 8px 12px;
             display: none;
             align-items: center;
             width: fit-content;
-            margin: 10px;
+            margin-bottom: 10px;
+            float: left;
+            clear: both;
+            max-width: 80%;
         }
 
         .typing-indicator span {
@@ -257,6 +260,19 @@ This specification outlines the core functionality and design of the chat applic
             50% {
                 opacity: 1;
             }
+        }
+
+        .message.you::after {
+            content: '\2713\2713';
+            font-size: 0.8em;
+            margin-left: 5px;
+            color: #34B7F1;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .message.you.read::after {
+            opacity: 1;
         }
     </style>
 </head>
@@ -311,9 +327,7 @@ This specification outlines the core functionality and design of the chat applic
             </div>
             <button id="endCallBtn" class="btn btn-danger btn-round">End Call</button>
         </div>
-        <div id="adBox">
-             0.16
-        </div>
+       
     </div>
     <div id="notificationArea" style="display: none;"></div>
 
@@ -571,10 +585,15 @@ This specification outlines the core functionality and design of the chat applic
                     showTypingIndicator();
                 } else if (data.type === 'stopTyping') {
                     hideTypingIndicator();
+                } else if (data.type === 'messageRead') {
+                    markMessageAsRead(data.id);
                 } else {
                     displayMessage(data, 'friend');
                     playSound('receive');
                     hideTypingIndicator();
+                    if (conn && conn.open) {
+                        conn.send({ type: 'messageRead', id: data.id });
+                    }
                 }
             });
 
@@ -591,18 +610,7 @@ This specification outlines the core functionality and design of the chat applic
             });
         }
 
-        function sendMessage() {
-            const messageInput = document.getElementById('messageInput');
-            const message = messageInput.value.trim();
-            if (message && conn && conn.open) {
-                conn.send({ type: 'text', content: message });
-                displayMessage({ type: 'text', content: message }, 'you');
-                messageInput.value = '';
-                playSound('send');
-                sendTypingStatus(false);
-                clearTimeout(typingTimer);
-            }
-        }
+        let lastMessageElement = null;
 
         function displayMessage(message, className) {
             const chatArea = document.getElementById('chatArea');
@@ -633,6 +641,13 @@ This specification outlines the core functionality and design of the chat applic
             
             chatArea.appendChild(messageElement);
             chatArea.scrollTop = chatArea.scrollHeight;
+
+            if (className === 'you') {
+                lastMessageElement = messageElement;
+                if (conn && conn.open) {
+                    conn.send({ type: 'messageRead', id: message.id });
+                }
+            }
         }
 
         function showChatInterface() {
@@ -886,7 +901,10 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         function showTypingIndicator() {
-            document.querySelector('.typing-indicator').style.display = 'flex';
+            const typingIndicator = document.querySelector('.typing-indicator');
+            typingIndicator.style.display = 'flex';
+            document.getElementById('chatArea').appendChild(typingIndicator);
+            document.getElementById('chatArea').scrollTop = document.getElementById('chatArea').scrollHeight;
         }
 
         function hideTypingIndicator() {
@@ -896,6 +914,26 @@ This specification outlines the core functionality and design of the chat applic
         function sendTypingStatus(isTyping) {
             if (conn && conn.open) {
                 conn.send({ type: isTyping ? 'typing' : 'stopTyping' });
+            }
+        }
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            if (message && conn && conn.open) {
+                const messageId = Date.now().toString();
+                conn.send({ type: 'text', content: message, id: messageId });
+                displayMessage({ type: 'text', content: message, id: messageId }, 'you');
+                messageInput.value = '';
+                playSound('send');
+                sendTypingStatus(false);
+                clearTimeout(typingTimer);
+            }
+        }
+
+        function markMessageAsRead(messageId) {
+            if (lastMessageElement && lastMessageElement.dataset.messageId === messageId) {
+                lastMessageElement.classList.add('read');
             }
         }
 
