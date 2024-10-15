@@ -602,6 +602,14 @@ This specification outlines the core functionality and design of the chat applic
                 log('Connection closed');
                 displayMessage('Your friend has disconnected', 'system');
                 showReconnectButton();
+                
+                // Check if the disconnected peer was the initiator
+                if (!isInitiator) {
+                    displayMessage('The chat initiator has disconnected. The page will reload in 5 seconds.', 'system');
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 5000);
+                }
             });
 
             conn.on('error', (err) => {
@@ -629,7 +637,7 @@ This specification outlines the core functionality and design of the chat applic
                     setTimeout(() => {
                         chatArea.removeChild(messageElement);
                     }, 1000);
-                }, 20000); // 20 seconds before fading
+                }, 8000); // Changed to 8 seconds before fading
             } else if (message.type === 'text') {
                 messageElement.textContent = message.content;
                 messageElement.dataset.messageId = message.id;
