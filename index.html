@@ -283,7 +283,6 @@ This specification outlines the core functionality and design of the chat applic
         <p id="loadingMessage">...</p>
         <div class="input-group mb-3">
             <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
-            <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
             <button id="copyLinkBtn" class="btn btn-success btn-round">Copy Chat Link</button>
         </div>
         <p id="copyStatus" class="mt-2"></p>
@@ -345,34 +344,30 @@ This specification outlines the core functionality and design of the chat applic
         let peer;
         let conn;
         let myPeerId;
-        let isConnected = false;
-        let connectionAttempts = 0;
-        const MAX_CONNECTION_ATTEMPTS = 5;
+        let isInitiator = false;
         let localStream;
         let remoteStream;
         let mediaConnection;
         let systemMessageCooldown = false;
-        let customPeerId = '';
         let typingTimer;
-        const TYPING_TIMER_LENGTH = 3000; // 3 seconds
+        const TYPING_TIMER_LENGTH = 3000;
+        let connectionAttempts = 0;
+        const MAX_CONNECTION_ATTEMPTS = 5;
 
-        // Add the call event listener here, outside of any other function
-      
         function initializePeer() {
             const urlParams = new URLSearchParams(window.location.search);
             const peerword = urlParams.get('p');
 
             if (peerword) {
-                // Joining an existing chat
                 connectToPeer(peerword);
             } else {
-                // Starting a new chat
                 createNewPeer();
             }
         }
 
         function createNewPeer() {
-            peer = new Peer();
+            const customId = document.getElementById('customPeerId').value.trim();
+            peer = customId ? new Peer(customId) : new Peer();
             
             peer.on('open', (id) => {
                 myPeerId = id;
@@ -386,40 +381,53 @@ This specification outlines the core functionality and design of the chat applic
             setupPeerEventListeners();
         }
 
-        function connectToPeer(peerword) {
-            if (peer) {
-                peer.destroy();
+        function connectToPeer(peerId) {
+            if (peerId === myPeerId) {
+                log('Attempted self-connection. Ignoring.');
+                return;
             }
 
-            peer = new Peer();
+            if (connectionAttempts >= MAX_CONNECTION_ATTEMPTS) {
+                log('Max connection attempts reached. Please try again later.');
+                return;
+            }
 
-            peer.on('open', (id) => {
-                myPeerId = id;
-                document.getElementById('myId').textContent = id;
-                log(`Peer opened. My ID: ${id}`);
+            log(`Connecting to peer: ${peerId}`);
+            if (conn) {
+                conn.close();
+            }
 
-                if (peerword !== id) {
-                    conn = peer.connect(peerword, { reliable: true });
-                    setupConnection();
-                } else {
-                    log('Cannot connect to self. Please use a different peerword.');
-                    displayMessage('Cannot connect to self. Please use a different peerword.', 'system');
-                }
+            if (!peer || peer.disconnected) {
+                peer = new Peer();
+                setupPeerEventListeners();
+            }
+
+            peer.on('open', () => {
+                conn = peer.connect(peerId, { reliable: true });
+                setupConnection();
             });
 
-            setupPeerEventListeners();
+            connectionAttempts++;
+            setTimeout(() => {
+                if (!conn || !conn.open) {
+                    log('Connection attempt failed. Retrying...');
+                    connectToPeer(peerId);
+                }
+            }, 3000);
         }
 
         function setupPeerEventListeners() {
             peer.on('connection', (connection) => {
-                if (!isConnected) {
-                    conn = connection;
-                    setupConnection();
-                    showChatInterface();
-                    isConnected = true;
-                } else {
+                if (conn && conn.open) {
+                    log('Already connected. Rejecting new connection.');
                     connection.close();
+                    return;
                 }
+                conn = connection;
+                setupConnection();
+                showChatInterface();
+                log('Your friend has joined the chat!');
+                displayMessage('Your friend has joined the chat!', 'system');
             });
 
             peer.on('call', async (call) => {
@@ -442,6 +450,13 @@ This specification outlines the core functionality and design of the chat applic
                     call.close();
                 }
             });
+
+            peer.on('error', (err) => {
+                log(`Peer error: ${err.type}`);
+                if (err.type === 'unavailable-id') {
+                    createNewPeer();
+                }
+            });
         }
 
         function setupConnection() {
@@ -451,8 +466,6 @@ This specification outlines the core functionality and design of the chat applic
                 log('Connected to peer');
                 displayMessage('Connected to peer', 'system');
                 showChatInterface();
-                isConnected = true;
-                connectionAttempts = 0;
             });
             
             conn.on('data', (data) => {
@@ -482,19 +495,83 @@ This specification outlines the core functionality and design of the chat applic
             conn.on('close', () => {
                 log('Connection closed');
                 displayMessage('Your friend has disconnected', 'system');
-                isConnected = false;
                 showReconnectButton();
             });
 
             conn.on('error', (err) => {
                 log(`Connection error: ${err.message}`);
                 displayMessage('Connection error: ' + err.message, 'system');
-                isConnected = false;
                 showReconnectButton();
             });
         }
 
-        let lastMessageId = null;
+        function setupCopyLinkButton(id) {
+            const copyLinkBtn = document.getElementById('copyLinkBtn');
+            const copyStatus = document.getElementById('copyStatus');
+
+            copyLinkBtn.addEventListener('click', () => {
+                const shareLink = `${window.location.origin}${window.location.pathname}?p=${id}`;
+                navigator.clipboard.writeText(shareLink).then(() => {
+                    copyStatus.textContent = 'Link copied to clipboard!';
+                    setTimeout(() => {
+                        copyStatus.textContent = '';
+                    }, 3000);
+                }, (err) => {
+                    console.error('Could not copy text: ', err);
+                    copyStatus.textContent = 'Failed to copy link. Please try again.';
+                });
+            });
+        }
+
+        // Initialize peer when the page loads
+        window.addEventListener('load', () => {
+            initializePeer();
+        });
+
+        // Re-initialize peer when custom ID changes
+        document.getElementById('customPeerId').addEventListener('change', () => {
+            if (peer) {
+                peer.destroy();
+            }
+            createNewPeer();
+        });
+
+        // Add this function to create and play sounds
+        function createAndPlaySound(frequency, duration) {
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.type = 'sine';
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+            gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.01);
+            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        // Update the playSound function
+        function playSound(type) {
+            if (type === 'send') {
+                createAndPlaySound(800, 0.1); // Higher pitch for sent messages
+            } else if (type === 'receive') {
+                createAndPlaySound(600, 0.1); // Lower pitch for received messages
+            }
+        }
+
+        function showNotification(message, duration = 3000) {
+            const notificationArea = document.getElementById('notificationArea');
+            notificationArea.textContent = message;
+            notificationArea.style.display = 'block';
+            setTimeout(() => {
+                notificationArea.style.display = 'none';
+            }, duration);
+        }
 
         function displayMessage(message, className) {
             const chatArea = document.getElementById('chatArea');
@@ -574,51 +651,10 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         document.getElementById('reconnectBtn').addEventListener('click', () => {
-            if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
-                connectionAttempts++;
+            if (conn && conn.peer) {
                 connectToPeer(conn.peer);
-            } else {
-                log('Max reconnection attempts reached. Please refresh the page.');
-                displayMessage('Max reconnection attempts reached. Please refresh the page.', 'system');
             }
         });
-
-        // Add this function to create and play sounds
-        function createAndPlaySound(frequency, duration) {
-            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = audioContext.createOscillator();
-            const gainNode = audioContext.createGain();
-
-            oscillator.type = 'sine';
-            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-            oscillator.connect(gainNode);
-            gainNode.connect(audioContext.destination);
-
-            gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-            gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.01);
-            gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + duration);
-
-            oscillator.start(audioContext.currentTime);
-            oscillator.stop(audioContext.currentTime + duration);
-        }
-
-        // Update the playSound function
-        function playSound(type) {
-            if (type === 'send') {
-                createAndPlaySound(800, 0.1); // Higher pitch for sent messages
-            } else if (type === 'receive') {
-                createAndPlaySound(600, 0.1); // Lower pitch for received messages
-            }
-        }
-
-        function showNotification(message, duration = 3000) {
-            const notificationArea = document.getElementById('notificationArea');
-            notificationArea.textContent = message;
-            notificationArea.style.display = 'block';
-            setTimeout(() => {
-                notificationArea.style.display = 'none';
-            }, duration);
-        }
 
         // Add this function to handle file selection
         function handleFileSelect(event) {
@@ -755,78 +791,6 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        // Add this function to handle shareword input changes
-        function handleSharewordChange() {
-            const sharewordInput = document.getElementById('sharewordInput');
-            const shareword = sharewordInput.value.trim();
-            
-            if (shareword) {
-                const newUrl = `${window.location.origin}${window.location.pathname}?p=${shareword}`;
-                window.history.pushState({}, '', newUrl);
-                setupCopyLinkButton(shareword);
-                
-                // Attempt to connect using the shareword
-                connectToPeer(shareword);
-            }
-        }
-
-        // Add these new functions
-        function showIncomingCallUI(call) {
-            const answerBtn = document.createElement('button');
-            answerBtn.textContent = 'Answer Call';
-            answerBtn.className = 'btn btn-success';
-            answerBtn.onclick = async () => {
-                try {
-                    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    document.getElementById('localVideo').srcObject = localStream;
-                    call.answer(localStream);
-                    setupMediaConnection(call);
-                    document.getElementById('videoCallContainer').style.display = 'flex';
-                    document.getElementById('startCallBtn').style.display = 'none';
-                    document.getElementById('endCallBtn').style.display = 'inline-block';
-                    removeIncomingCallUI();
-                } catch (err) {
-                    console.error('Failed to get local stream', err);
-                    displayMessage('Failed to access camera and microphone. Please check your permissions.', 'system');
-                    call.close();
-                }
-            };
-
-            const rejectBtn = document.createElement('button');
-            rejectBtn.textContent = 'Reject Call';
-            rejectBtn.className = 'btn btn-danger';
-            rejectBtn.onclick = () => rejectCall(call);
-
-            const callUI = document.createElement('div');
-            callUI.id = 'incomingCallUI';
-            callUI.style.position = 'fixed';
-            callUI.style.top = '50%';
-            callUI.style.left = '50%';
-            callUI.style.transform = 'translate(-50%, -50%)';
-            callUI.style.backgroundColor = 'white';
-            callUI.style.padding = '20px';
-            callUI.style.borderRadius = '10px';
-            callUI.style.boxShadow = '0 0 10px rgba(0,0,0,0.5)';
-            callUI.style.zIndex = '1000';
-            callUI.appendChild(answerBtn);
-            callUI.appendChild(rejectBtn);
-
-            document.body.appendChild(callUI);
-        }
-
-        function rejectCall(call) {
-            call.close();
-            removeIncomingCallUI();
-            displayMessage('Video call rejected', 'system');
-        }
-
-        function removeIncomingCallUI() {
-            const callUI = document.getElementById('incomingCallUI');
-            if (callUI) {
-                callUI.remove();
-            }
-        }
-
         function showTypingIndicator() {
             const typingIndicator = document.querySelector('.typing-indicator');
             typingIndicator.style.display = 'flex';
@@ -888,48 +852,6 @@ This specification outlines the core functionality and design of the chat applic
             sendTypingStatus(true);
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => sendTypingStatus(false), TYPING_TIMER_LENGTH);
-        });
-
-        function setupCopyLinkButton(id) {
-            const copyLinkBtn = document.getElementById('copyLinkBtn');
-            const copyStatus = document.getElementById('copyStatus');
-
-            copyLinkBtn.addEventListener('click', () => {
-                const shareLink = `${window.location.origin}${window.location.pathname}?p=${id}`;
-
-                navigator.clipboard.writeText(shareLink).then(() => {
-                    copyStatus.textContent = 'Link copied to clipboard!';
-                    setTimeout(() => {
-                        copyStatus.textContent = '';
-                    }, 3000);
-                }, (err) => {
-                    console.error('Could not copy text: ', err);
-                    copyStatus.textContent = 'Failed to copy link. Please try again.';
-                });
-            });
-        }
-
-        // Initialize peer when the page loads
-        window.addEventListener('load', () => {
-            initializePeer();
-            
-            // Add event listener for shareword input
-            const sharewordInput = document.getElementById('sharewordInput');
-            sharewordInput.addEventListener('change', handleSharewordChange);
-        });
-
-        // Re-initialize peer when custom ID changes
-        document.getElementById('customPeerId').addEventListener('change', () => {
-            if (peer) {
-                peer.destroy();
-            }
-            customPeerId = document.getElementById('customPeerId').value.trim();
-            initializePeer();
-            
-            // Update URL and copy link
-            const newUrl = `${window.location.origin}${window.location.pathname}?i=${customPeerId}`;
-            window.history.pushState({}, '', newUrl);
-            setupCopyLinkButton(customPeerId);
         });
     </script>
  
