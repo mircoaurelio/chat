@@ -357,13 +357,24 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add the call event listener here, outside of any other function
       
+        // Add this function to create a hash from a string
+        function createHash(input) {
+            let hash = 0;
+            for (let i = 0; i < input.length; i++) {
+                const char = input.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32-bit integer
+            }
+            return Math.abs(hash).toString(36); // Convert to base 36 and ensure it's positive
+        }
+
         function initializePeer() {
             const urlParams = new URLSearchParams(window.location.search);
             const initiatorWord = urlParams.get('i');
             const receiverWord = urlParams.get('r');
 
             if (initiatorWord) {
-                customPeerId = initiatorWord;
+                customPeerId = createHash(initiatorWord);
                 isInitiator = true;
                 document.getElementById('customPeerId').value = initiatorWord;
             } else if (receiverWord) {
@@ -383,12 +394,12 @@ This specification outlines the core functionality and design of the chat applic
                 setTimeout(() => {
                     if (receiverWord) {
                         log('Connecting to initiator');
-                        connectToPeer(receiverWord);
+                        connectToPeer(createHash(receiverWord));
                     } else {
                         log('New chat as initiator');
                         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
                         document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                        setupCopyLinkButton(id);
+                        setupCopyLinkButton(initiatorWord || id);
                     }
                 }, 1000); // 1 second delay
 
@@ -855,8 +866,8 @@ This specification outlines the core functionality and design of the chat applic
                 window.history.pushState({}, '', newUrl);
                 setupCopyLinkButton(shareword);
                 
-                // Attempt to connect using the shareword
-                connectToPeer(shareword);
+                // Attempt to connect using the hash of the shareword
+                connectToPeer(createHash(shareword));
             }
         }
 
