@@ -354,6 +354,11 @@ This specification outlines the core functionality and design of the chat applic
         let customPeerId = '';
         let typingTimer;
         const TYPING_TIMER_LENGTH = 3000; // 3 seconds
+        let connectionAttempts = 0;
+        const maxConnectionAttempts = 5;
+        const reloadInterval = 9000; // 9 seconds
+        let connectionTimer;
+        let isConnected = false;
 
         // Add the call event listener here, outside of any other function
       
@@ -379,18 +384,8 @@ This specification outlines the core functionality and design of the chat applic
                 
                 log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
 
-                // Delay the connection attempt to ensure PeerJS is fully initialized
-                setTimeout(() => {
-                    if (receiverWord) {
-                        log('Connecting to initiator');
-                        connectToPeer(receiverWord);
-                    } else {
-                        log('New chat as initiator');
-                        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
-                        document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                        setupCopyLinkButton(id);
-                    }
-                }, 1000); // 1 second delay
+                // Start the connection process
+                startConnectionProcess();
 
                 // Replace setInterval with a more battery-friendly approach
                 let lastCheckTime = Date.now();
@@ -467,6 +462,101 @@ This specification outlines the core functionality and design of the chat applic
             });
         }
 
+        function startConnectionProcess() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const receiverWord = urlParams.get('r');
+
+            if (receiverWord) {
+                log('Connecting to initiator');
+                connectToPeer(receiverWord);
+            } else {
+                log('New chat as initiator');
+                document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+                document.getElementById('copyLinkBtn').style.display = 'inline-block';
+                setupCopyLinkButton(myPeerId);
+            }
+
+            // Start the reload timer
+            connectionTimer = setTimeout(checkConnectionAndReload, reloadInterval);
+        }
+
+        function connectToPeer(peerId) {
+            log(`Connecting to peer: ${peerId}`);
+            if (conn) {
+                conn.close();
+            }
+            conn = peer.connect(peerId, { reliable: true });
+            setupConnection();
+            
+            connectionAttempts++;
+            log(`Connection attempt ${connectionAttempts}`);
+
+            // Clear any existing timer
+            clearTimeout(connectionTimer);
+            // Set a new timer for the next check
+            connectionTimer = setTimeout(checkConnectionAndReload, reloadInterval);
+        }
+
+        function setupConnection() {
+            hideReconnectButton();
+            
+            conn.on('open', () => {
+                log('Connected to peer');
+                displayMessage('Connected to peer', 'system');
+                showChatInterface();
+                isConnected = true;
+                clearTimeout(connectionTimer); // Clear the reload timer
+            });
+            
+            conn.on('data', (data) => {
+                log(`Received data: ${JSON.stringify(data)}`);
+                if (data.type === 'prepareForCall') {
+                    displayMessage('Incoming video call...', 'system');
+                } else if (data.type === 'endCall') {
+                    endVideoCall(false);
+                } else if (data.type === 'typing') {
+                    showTypingIndicator();
+                } else if (data.type === 'stopTyping') {
+                    hideTypingIndicator();
+                } else if (data.type === 'messageReceived') {
+                    markMessageAsReceived(data.id);
+                } else if (data.type === 'messageRead') {
+                    markMessageAsRead(data.id);
+                } else {
+                    displayMessage(data, 'friend');
+                    playSound('receive');
+                    hideTypingIndicator();
+                    if (conn && conn.open) {
+                        conn.send({ type: 'messageRead', id: data.id });
+                    }
+                }
+            });
+
+            conn.on('close', () => {
+                log('Connection closed');
+                displayMessage('Your friend has disconnected', 'system');
+                showReconnectButton();
+            });
+
+            conn.on('error', (err) => {
+                log(`Connection error: ${err.message}`);
+                displayMessage('Connection error: ' + err.message, 'system');
+                showReconnectButton();
+            });
+        }
+
+        function checkConnectionAndReload() {
+            if (!isConnected) {
+                if (connectionAttempts < maxConnectionAttempts) {
+                    log(`Connection not established. Retrying (Attempt ${connectionAttempts + 1}/${maxConnectionAttempts})`);
+                    startConnectionProcess();
+                } else {
+                    log('Max connection attempts reached. Reloading page.');
+                    location.reload();
+                }
+            }
+        }
+
         // Initialize peer when the page loads
         window.addEventListener('load', () => {
             initializePeer();
@@ -474,6 +564,11 @@ This specification outlines the core functionality and design of the chat applic
             // Add event listener for shareword input
             const sharewordInput = document.getElementById('sharewordInput');
             sharewordInput.addEventListener('change', handleSharewordChange);
+
+            // Clear connection timer if the page is being unloaded
+            window.addEventListener('beforeunload', () => {
+                clearTimeout(connectionTimer);
+            });
         });
 
         // Re-initialize peer when custom ID changes
@@ -525,132 +620,6 @@ This specification outlines the core functionality and design of the chat applic
             setTimeout(() => {
                 notificationArea.style.display = 'none';
             }, duration);
-        }
-
-        function connectToPeer(peerId) {
-            log(`Connecting to peer: ${peerId}`);
-            if (conn) {
-                conn.close();
-            }
-            conn = peer.connect(peerId, { reliable: true });
-            setupConnection();
-            
-            // Enhanced retry mechanism
-            let retryCount = 0;
-            const maxRetries = 100; // Increased number of retries
-            const retryInterval = 1000; // Reduced interval to 3 seconds
-
-            function retryConnection() {
-                if (retryCount < maxRetries) {
-                    retryCount++;
-                    log(`Retry attempt ${retryCount}`);
-                    conn = peer.connect(peerId, { reliable: true });
-                    setupConnection();
-                    setTimeout(() => {
-                        if (!conn.open) {
-                            retryConnection();
-                        }
-                    }, retryInterval);
-                } else {
-                    log('Max retries reached. Unable to connect.');
-                    displayMessage('Unable to connect. Please try again later.', 'system');
-                }
-            }
-
-            // Start the retry process if the initial connection fails
-            setTimeout(() => {
-                if (!conn.open) {
-                    retryConnection();
-                }
-            }, retryInterval);
-        }
-
-        function setupConnection() {
-            hideReconnectButton();
-            
-            conn.on('open', () => {
-                log('Connected to peer');
-                displayMessage('Connected to peer', 'system');
-                showChatInterface();
-            });
-            
-            conn.on('data', (data) => {
-                log(`Received data: ${JSON.stringify(data)}`);
-                if (data.type === 'prepareForCall') {
-                    displayMessage('Incoming video call...', 'system');
-                } else if (data.type === 'endCall') {
-                    endVideoCall(false);
-                } else if (data.type === 'typing') {
-                    showTypingIndicator();
-                } else if (data.type === 'stopTyping') {
-                    hideTypingIndicator();
-                } else if (data.type === 'messageReceived') {
-                    markMessageAsReceived(data.id);
-                } else if (data.type === 'messageRead') {
-                    markMessageAsRead(data.id);
-                } else {
-                    displayMessage(data, 'friend');
-                    playSound('receive');
-                    hideTypingIndicator();
-                    if (conn && conn.open) {
-                        conn.send({ type: 'messageRead', id: data.id });
-                    }
-                }
-            });
-
-            conn.on('close', () => {
-                log('Connection closed');
-                displayMessage('Your friend has disconnected', 'system');
-                showReconnectButton();
-            });
-
-            conn.on('error', (err) => {
-                log(`Connection error: ${err.message}`);
-                displayMessage('Connection error: ' + err.message, 'system');
-                showReconnectButton();
-            });
-        }
-
-        let lastMessageId = null;
-
-        function displayMessage(message, className) {
-            const chatArea = document.getElementById('chatArea');
-            const messageElement = document.createElement('div');
-            messageElement.className = `message ${className}`;
-            
-            if (typeof message === 'string') {
-                // Handle system messages
-                messageElement.textContent = message;
-                messageElement.classList.add('system');
-                
-                setTimeout(() => {
-                    messageElement.style.opacity = '0';
-                    messageElement.style.transition = 'opacity 1s';
-                    setTimeout(() => {
-                        chatArea.removeChild(messageElement);
-                    }, 1000);
-                }, 20000); // 20 seconds before fading
-            } else if (message.type === 'text') {
-                messageElement.textContent = message.content;
-                messageElement.dataset.messageId = message.id;
-            } else if (message.type === 'image') {
-                const img = document.createElement('img');
-                img.src = message.content;
-                img.style.maxWidth = '100%';
-                img.style.maxHeight = '200px';
-                messageElement.appendChild(img);
-                messageElement.dataset.messageId = message.id;
-            }
-            
-            chatArea.appendChild(messageElement);
-            chatArea.scrollTop = chatArea.scrollHeight;
-
-            if (className === 'friend') {
-                lastMessageId = message.id;
-                if (conn && conn.open) {
-                    conn.send({ type: 'messageReceived', id: message.id });
-                }
-            }
         }
 
         function showChatInterface() {
