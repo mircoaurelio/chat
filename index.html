@@ -538,7 +538,7 @@ This specification outlines the core functionality and design of the chat applic
             // Enhanced retry mechanism
             let retryCount = 0;
             const maxRetries = 100; // Increased number of retries
-            const retryInterval = 1000; // Reduced interval to 3 seconds
+            const retryInterval = 1000; // Reduced interval to 1 second
 
             function retryConnection() {
                 if (retryCount < maxRetries) {
@@ -568,10 +568,16 @@ This specification outlines the core functionality and design of the chat applic
         function setupConnection() {
             hideReconnectButton();
             
+            // Remove any existing 'open' event listeners
+            conn.off('open');
+            
             conn.on('open', () => {
                 log('Connected to peer');
-                displayMessage('Connected to peer', 'system');
-                showChatInterface();
+                // Only display the connection message if it hasn't been displayed yet
+                if (!document.getElementById('chatInterface').style.display || document.getElementById('chatInterface').style.display === 'none') {
+                    displayMessage('Connected to peer', 'system');
+                    showChatInterface();
+                }
             });
             
             conn.on('data', (data) => {
