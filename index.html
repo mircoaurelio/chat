@@ -354,6 +354,10 @@ This specification outlines the core functionality and design of the chat applic
         let customPeerId = '';
         let typingTimer;
         const TYPING_TIMER_LENGTH = 3000; // 3 seconds
+        let connectionAttempts = 0;
+        const MAX_CONNECTION_ATTEMPTS = 3;
+        const CONNECTION_TIMEOUT = 9000; // 9 seconds
+        let connectionTimeout;
 
         // Add the call event listener here, outside of any other function
       
@@ -379,6 +383,9 @@ This specification outlines the core functionality and design of the chat applic
                 
                 log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
 
+                // Start the connection timeout
+                startConnectionTimeout();
+
                 // Delay the connection attempt to ensure PeerJS is fully initialized
                 setTimeout(() => {
                     if (receiverWord) {
@@ -391,18 +398,6 @@ This specification outlines the core functionality and design of the chat applic
                         setupCopyLinkButton(id);
                     }
                 }, 1000); // 1 second delay
-
-                // Replace setInterval with a more battery-friendly approach
-                let lastCheckTime = Date.now();
-                document.addEventListener('visibilitychange', () => {
-                    if (!document.hidden) {
-                        const now = Date.now();
-                        if (now - lastCheckTime > 5000) {
-                            checkConnectionStatus();
-                            lastCheckTime = now;
-                        }
-                    }
-                });
             });
 
             peer.on('connection', (connection) => {
@@ -527,6 +522,22 @@ This specification outlines the core functionality and design of the chat applic
             }, duration);
         }
 
+        function startConnectionTimeout() {
+            clearTimeout(connectionTimeout);
+            connectionTimeout = setTimeout(() => {
+                if (!conn || !conn.open) {
+                    log('Connection timeout. Attempting to reconnect...');
+                    connectionAttempts++;
+                    if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
+                        connectToPeer(conn ? conn.peer : customPeerId || myPeerId);
+                    } else {
+                        log('Max connection attempts reached. Reloading page...');
+                        location.reload();
+                    }
+                }
+            }, CONNECTION_TIMEOUT);
+        }
+
         function connectToPeer(peerId) {
             log(`Connecting to peer: ${peerId}`);
             if (conn) {
@@ -535,34 +546,8 @@ This specification outlines the core functionality and design of the chat applic
             conn = peer.connect(peerId, { reliable: true });
             setupConnection();
             
-            // Enhanced retry mechanism
-            let retryCount = 0;
-            const maxRetries = 100; // Increased number of retries
-            const retryInterval = 1000; // Reduced interval to 3 seconds
-
-            function retryConnection() {
-                if (retryCount < maxRetries) {
-                    retryCount++;
-                    log(`Retry attempt ${retryCount}`);
-                    conn = peer.connect(peerId, { reliable: true });
-                    setupConnection();
-                    setTimeout(() => {
-                        if (!conn.open) {
-                            retryConnection();
-                        }
-                    }, retryInterval);
-                } else {
-                    log('Max retries reached. Unable to connect.');
-                    displayMessage('Unable to connect. Please try again later.', 'system');
-                }
-            }
-
-            // Start the retry process if the initial connection fails
-            setTimeout(() => {
-                if (!conn.open) {
-                    retryConnection();
-                }
-            }, retryInterval);
+            // Reset the connection timeout
+            startConnectionTimeout();
         }
 
         function setupConnection() {
@@ -572,6 +557,8 @@ This specification outlines the core functionality and design of the chat applic
                 log('Connected to peer');
                 displayMessage('Connected to peer', 'system');
                 showChatInterface();
+                clearTimeout(connectionTimeout); // Clear the timeout as connection is established
+                connectionAttempts = 0; // Reset connection attempts
             });
             
             conn.on('data', (data) => {
@@ -602,12 +589,14 @@ This specification outlines the core functionality and design of the chat applic
                 log('Connection closed');
                 displayMessage('Your friend has disconnected', 'system');
                 showReconnectButton();
+                startConnectionTimeout(); // Restart the timeout to attempt reconnection
             });
 
             conn.on('error', (err) => {
                 log(`Connection error: ${err.message}`);
                 displayMessage('Connection error: ' + err.message, 'system');
                 showReconnectButton();
+                startConnectionTimeout(); // Restart the timeout to attempt reconnection
             });
         }
 
@@ -965,6 +954,25 @@ This specification outlines the core functionality and design of the chat applic
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => sendTypingStatus(false), TYPING_TIMER_LENGTH);
         });
+
+        // Add this function to periodically check connection status
+        function periodicConnectionCheck() {
+            if (!conn || !conn.open) {
+                log('Periodic check: No connection. Attempting to reconnect...');
+                connectionAttempts++;
+                if (connectionAttempts < MAX_CONNECTION_ATTEMPTS) {
+                    connectToPeer(customPeerId || myPeerId);
+                } else {
+                    log('Max connection attempts reached. Reloading page...');
+                    location.reload();
+                }
+            } else {
+                connectionAttempts = 0; // Reset attempts if connected
+            }
+        }
+
+        // Set up periodic connection check
+        setInterval(periodicConnectionCheck, 10000); // Check every 10 seconds
     </script>
  
 </body>
