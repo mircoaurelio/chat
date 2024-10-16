@@ -357,24 +357,23 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add the call event listener here, outside of any other function
       
-        // Add this function to create a hash from a string
-        function createHash(input) {
-            let hash = 0;
-            for (let i = 0; i < input.length; i++) {
-                const char = input.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash; // Convert to 32-bit integer
-            }
-            return Math.abs(hash).toString(36); // Convert to base 36 and ensure it's positive
+        // Add a more secure hash function using SHA-256
+        async function createHash(input) {
+            const encoder = new TextEncoder();
+            const data = encoder.encode(input);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+            return hashHex;
         }
 
-        function initializePeer() {
+        async function initializePeer() {
             const urlParams = new URLSearchParams(window.location.search);
             const initiatorWord = urlParams.get('i');
             const receiverWord = urlParams.get('r');
 
             if (initiatorWord) {
-                customPeerId = createHash(initiatorWord);
+                customPeerId = await createHash(initiatorWord);
                 isInitiator = true;
                 document.getElementById('customPeerId').value = initiatorWord;
             } else if (receiverWord) {
@@ -384,17 +383,17 @@ This specification outlines the core functionality and design of the chat applic
 
             peer = customPeerId ? new Peer(customPeerId) : new Peer();
             
-            peer.on('open', (id) => {
+            peer.on('open', async (id) => {
                 myPeerId = id;
                 document.getElementById('myId').textContent = id;
                 
                 log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
 
                 // Delay the connection attempt to ensure PeerJS is fully initialized
-                setTimeout(() => {
+                setTimeout(async () => {
                     if (receiverWord) {
                         log('Connecting to initiator');
-                        connectToPeer(createHash(receiverWord));
+                        connectToPeer(await createHash(receiverWord));
                     } else {
                         log('New chat as initiator');
                         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
@@ -857,7 +856,7 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         // Add this function to handle shareword input changes
-        function handleSharewordChange() {
+        async function handleSharewordChange() {
             const sharewordInput = document.getElementById('sharewordInput');
             const shareword = sharewordInput.value.trim();
             
@@ -867,7 +866,7 @@ This specification outlines the core functionality and design of the chat applic
                 setupCopyLinkButton(shareword);
                 
                 // Attempt to connect using the hash of the shareword
-                connectToPeer(createHash(shareword));
+                connectToPeer(await createHash(shareword));
             }
         }
 
