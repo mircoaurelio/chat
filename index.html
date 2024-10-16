@@ -357,15 +357,14 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add the call event listener here, outside of any other function
       
-        // Add this function to create a hash from a string
+        // Replace the createHash function with this more robust version
         function createHash(input) {
             let hash = 0;
+            const prime = 31;
             for (let i = 0; i < input.length; i++) {
-                const char = input.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash; // Convert to 32-bit integer
+                hash = Math.imul(hash + input.charCodeAt(i), prime);
             }
-            return Math.abs(hash).toString(36); // Convert to base 36 and ensure it's positive
+            return Math.abs(hash).toString(36);
         }
 
         function initializePeer() {
@@ -394,7 +393,7 @@ This specification outlines the core functionality and design of the chat applic
                 setTimeout(() => {
                     if (receiverWord) {
                         log('Connecting to initiator');
-                        connectToPeer(createHash(receiverWord));
+                        connectToPeer(receiverWord);
                     } else {
                         log('New chat as initiator');
                         document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
@@ -464,6 +463,7 @@ This specification outlines the core functionality and design of the chat applic
 
             copyLinkBtn.addEventListener('click', () => {
                 const shareWord = sharewordInput.value.trim() || customPeerId || id;
+                // Use the shareWord directly in the URL, not the hash
                 const shareLink = `${window.location.origin}${window.location.pathname}?r=${shareWord}`;
 
                 navigator.clipboard.writeText(shareLink).then(() => {
@@ -543,7 +543,8 @@ This specification outlines the core functionality and design of the chat applic
             if (conn) {
                 conn.close();
             }
-            conn = peer.connect(peerId, { reliable: true });
+            // Use the hash of the peerId for the actual connection
+            conn = peer.connect(createHash(peerId), { reliable: true });
             setupConnection();
             
             // Enhanced retry mechanism
@@ -555,7 +556,7 @@ This specification outlines the core functionality and design of the chat applic
                 if (retryCount < maxRetries) {
                     retryCount++;
                     log(`Retry attempt ${retryCount}`);
-                    conn = peer.connect(peerId, { reliable: true });
+                    conn = peer.connect(createHash(peerId), { reliable: true });
                     setupConnection();
                     setTimeout(() => {
                         if (!conn.open) {
@@ -862,12 +863,13 @@ This specification outlines the core functionality and design of the chat applic
             const shareword = sharewordInput.value.trim();
             
             if (shareword) {
+                // Use the shareword directly in the URL, not the hash
                 const newUrl = `${window.location.origin}${window.location.pathname}?r=${shareword}`;
                 window.history.pushState({}, '', newUrl);
                 setupCopyLinkButton(shareword);
                 
-                // Attempt to connect using the hash of the shareword
-                connectToPeer(createHash(shareword));
+                // Attempt to connect using the shareword
+                connectToPeer(shareword);
             }
         }
 
