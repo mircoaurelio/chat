@@ -462,8 +462,9 @@ This specification outlines the core functionality and design of the chat applic
             const sharewordInput = document.getElementById('sharewordInput');
 
             copyLinkBtn.addEventListener('click', () => {
-                const shareWord = sharewordInput.value.trim() || customPeerId || id;
-                const shareLink = `${window.location.origin}${window.location.pathname}?r=${shareWord}`;
+                const urlParams = new URLSearchParams(window.location.search);
+                const shareWord = urlParams.get('i') || urlParams.get('r') || sharewordInput.value.trim() || id;
+                const shareLink = `${window.location.origin}${window.location.pathname}?${isInitiator ? 'i' : 'r'}=${shareWord}`;
 
                 navigator.clipboard.writeText(shareLink).then(() => {
                     copyStatus.textContent = 'Link copied to clipboard!';
