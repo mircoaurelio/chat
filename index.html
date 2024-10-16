@@ -372,12 +372,12 @@ This specification outlines the core functionality and design of the chat applic
             const initiatorWord = urlParams.get('i');
             const receiverWord = urlParams.get('r');
 
+            isInitiator = !receiverWord; // Set to true if there's no 'r' parameter
+
             if (initiatorWord) {
                 customPeerId = await createHash(initiatorWord);
-                isInitiator = true;
                 document.getElementById('customPeerId').value = initiatorWord;
             } else if (receiverWord) {
-                isInitiator = false;
                 document.getElementById('sharewordInput').value = receiverWord;
             }
 
