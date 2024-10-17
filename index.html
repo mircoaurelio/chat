@@ -354,6 +354,7 @@ This specification outlines the core functionality and design of the chat applic
         let customPeerId = '';
         let typingTimer;
         const TYPING_TIMER_LENGTH = 3000; // 3 seconds
+        let initialConnectionMessageShown = false;
 
         // Add the call event listener here, outside of any other function
       
@@ -550,6 +551,9 @@ This specification outlines the core functionality and design of the chat applic
             if (conn) {
                 conn.close();
             }
+            // Reset the flag when starting a new connection
+            initialConnectionMessageShown = false;
+            
             // Use the hash of the peerId for the actual connection
             const hashedPeerId = await createHash(peerId);
             conn = peer.connect(hashedPeerId, { reliable: true });
@@ -593,13 +597,12 @@ This specification outlines the core functionality and design of the chat applic
             
             conn.on('open', () => {
                 log('Connected to peer');
-                // Only display the connection message if it hasn't been displayed yet
-                if (!document.getElementById('chatInterface').style.display || document.getElementById('chatInterface').style.display === 'none') {
+                if (!initialConnectionMessageShown) {
                     displayMessage('Connected to peer', 'system');
                     showChatInterface();
+                    initialConnectionMessageShown = true;
                 } else {
-                    // This is a reconnection
-                    displayMessage('Your friend has connected', 'system');
+                    displayMessage('Your friend has reconnected', 'system');
                 }
             });
             
