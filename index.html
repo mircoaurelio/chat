@@ -1,3 +1,4 @@
+
 <!-- 
 This is a peer-to-peer (P2P) chat application that allows users to communicate directly with each other without the need for a central server. the application is not using a singnaling server because the link is shared via the URL. The application is built using HTML, JavaScript, and the PeerJS library for WebRTC-based peer-to-peer connections. It is designed to be anonymous and serverless, with a focus on simplicity and ease of use.
 Features
@@ -355,6 +356,9 @@ This specification outlines the core functionality and design of the chat applic
         let typingTimer;
         const TYPING_TIMER_LENGTH = 3000; // 3 seconds
 
+        let reloadInterval;
+        let chatOpen = false;
+
         // Add the call event listener here, outside of any other function
       
         // Add a more secure hash function using SHA-256
@@ -413,6 +417,9 @@ This specification outlines the core functionality and design of the chat applic
                         }
                     }
                 });
+
+                // Start the reload interval
+                startReloadInterval();
             });
 
             peer.on('connection', (connection) => {
@@ -583,6 +590,8 @@ This specification outlines the core functionality and design of the chat applic
             
             conn.on('open', () => {
                 log('Connected to peer');
+                chatOpen = true;
+                stopReloadInterval();
                 // Only display the connection message if it hasn't been displayed yet
                 if (!document.getElementById('chatInterface').style.display || document.getElementById('chatInterface').style.display === 'none') {
                     displayMessage('Connected to peer', 'system');
@@ -621,10 +630,10 @@ This specification outlines the core functionality and design of the chat applic
                 
                 // Check if the disconnected peer was the initiator
                 if (!isInitiator) {
-                    displayMessage('The chat initiator has disconnected. The page will reload in 5 seconds.', 'system');
+                    displayMessage('The chat initiator has disconnected. The page will reload in a moment.', 'system');
                     setTimeout(() => {
                         window.location.reload();
-                    }, 5000);
+                    }, 2000);
                 }
             });
 
@@ -681,6 +690,8 @@ This specification outlines the core functionality and design of the chat applic
             document.getElementById('chatInterface').style.display = 'flex';
             document.getElementById('chatInterface').style.flexDirection = 'column';
             document.getElementById('shareInterface').style.display = 'none';
+            chatOpen = true;
+            stopReloadInterval();
         }
 
         document.getElementById('messageInput').addEventListener('keypress', function(e) {
@@ -989,6 +1000,18 @@ This specification outlines the core functionality and design of the chat applic
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => sendTypingStatus(false), TYPING_TIMER_LENGTH);
         });
+
+        function startReloadInterval() {
+            reloadInterval = setInterval(() => {
+                if (!chatOpen) {
+                    window.location.reload();
+                }
+            }, 5000);
+        }
+
+        function stopReloadInterval() {
+            clearInterval(reloadInterval);
+        }
     </script>
  
 </body>
