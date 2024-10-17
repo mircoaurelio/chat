@@ -634,7 +634,7 @@ This specification outlines the core functionality and design of the chat applic
                 
                 // Check if the disconnected peer was the initiator
                 if (!isInitiator) {
-                    displayMessage('The chat initiator has disconnected. The page will reload in 5 seconds.', 'system');
+                    displayMessage('The chat initiator has disconnected. The page will reload in seconds.', 'system');
                     setTimeout(() => {
                         window.location.reload();
                     }, 2000);
