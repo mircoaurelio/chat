@@ -357,15 +357,26 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add the call event listener here, outside of any other function
       
-        // Add this function to create a hash from a string
+        // Replace the existing createHash function with this new one
         function createHash(input) {
-            let hash = 0;
+            let hash = '';
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            const charactersLength = characters.length;
+            
+            // Use the input string to seed the random number generator
+            let seed = 0;
             for (let i = 0; i < input.length; i++) {
-                const char = input.charCodeAt(i);
-                hash = ((hash << 5) - hash) + char;
-                hash = hash & hash; // Convert to 32-bit integer
+                seed += input.charCodeAt(i);
             }
-            return Math.abs(hash).toString(36); // Convert to base 36 and ensure it's positive
+            
+            // Generate a 40-character hash
+            for (let i = 0; i < 40; i++) {
+                const randomIndex = Math.floor((Math.sin(seed++) + 1) * 10000) % charactersLength;
+                hash += characters.charAt(randomIndex);
+            }
+            
+            console.log(`Created hash for input "${input}": ${hash}`);
+            return hash;
         }
 
         function initializePeer() {
@@ -377,18 +388,21 @@ This specification outlines the core functionality and design of the chat applic
                 customPeerId = createHash(initiatorWord);
                 isInitiator = true;
                 document.getElementById('customPeerId').value = initiatorWord;
+                console.log(`Initializing as initiator. Word: ${initiatorWord}, Hash: ${customPeerId}`);
             } else if (receiverWord) {
                 isInitiator = false;
                 document.getElementById('sharewordInput').value = receiverWord;
+                console.log(`Initializing as receiver. Word: ${receiverWord}`);
             }
 
             peer = customPeerId ? new Peer(customPeerId) : new Peer();
+            console.log(`Creating Peer with${customPeerId ? '' : 'out'} custom ID: ${customPeerId || 'Random ID'}`);
             
             peer.on('open', (id) => {
                 myPeerId = id;
                 document.getElementById('myId').textContent = id;
                 
-                log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
+                console.log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}, Custom ID used: ${!!customPeerId}`);
 
                 // Delay the connection attempt to ensure PeerJS is fully initialized
                 setTimeout(() => {
@@ -538,12 +552,15 @@ This specification outlines the core functionality and design of the chat applic
             }, duration);
         }
 
+        // Update the connectToPeer function
         function connectToPeer(peerId) {
-            log(`Connecting to peer: ${peerId}`);
+            console.log(`Attempting to connect to peer: ${peerId}`);
             if (conn) {
+                console.log('Closing existing connection before creating a new one');
                 conn.close();
             }
             conn = peer.connect(peerId, { reliable: true });
+            console.log(`Connection object created: ${conn ? 'Success' : 'Failed'}`);
             setupConnection();
             
             // Enhanced retry mechanism
@@ -576,14 +593,17 @@ This specification outlines the core functionality and design of the chat applic
             }, retryInterval);
         }
 
+        // Update the setupConnection function
         function setupConnection() {
             hideReconnectButton();
+            
+            console.log('Setting up connection');
             
             // Remove any existing 'open' event listeners
             conn.off('open');
             
             conn.on('open', () => {
-                log('Connected to peer');
+                console.log(`Connected to peer: ${conn.peer}`);
                 // Only display the connection message if it hasn't been displayed yet
                 if (!document.getElementById('chatInterface').style.display || document.getElementById('chatInterface').style.display === 'none') {
                     displayMessage('Connected to peer', 'system');
@@ -592,7 +612,7 @@ This specification outlines the core functionality and design of the chat applic
             });
             
             conn.on('data', (data) => {
-                log(`Received data: ${JSON.stringify(data)}`);
+                console.log(`Received data: ${JSON.stringify(data)}`);
                 if (data.type === 'prepareForCall') {
                     displayMessage('Incoming video call...', 'system');
                 } else if (data.type === 'endCall') {
@@ -616,7 +636,7 @@ This specification outlines the core functionality and design of the chat applic
             });
 
             conn.on('close', () => {
-                log('Connection closed');
+                console.log('Connection closed');
                 displayMessage('Your friend has disconnected', 'system');
                 showReconnectButton();
                 
@@ -630,7 +650,7 @@ This specification outlines the core functionality and design of the chat applic
             });
 
             conn.on('error', (err) => {
-                log(`Connection error: ${err.message}`);
+                console.error(`Connection error: ${err.message}`);
                 displayMessage('Connection error: ' + err.message, 'system');
                 showReconnectButton();
             });
