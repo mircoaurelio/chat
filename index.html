@@ -357,23 +357,28 @@ This specification outlines the core functionality and design of the chat applic
 
         // Add the call event listener here, outside of any other function
       
-        // Replace the createHash function with this more robust version
-        function createHash(input) {
-            let hash = 0;
-            const prime = 31;
-            for (let i = 0; i < input.length; i++) {
-                hash = Math.imul(hash + input.charCodeAt(i), prime);
-            }
-            return Math.abs(hash).toString(36);
+        function sha256(input) {
+            const utf8 = new TextEncoder().encode(input);
+            return crypto.subtle.digest('SHA-256', utf8).then(hashBuffer => {
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const hashHex = hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
+                return hashHex;
+            });
         }
 
-        function initializePeer() {
+        async function createHash(input) {
+            const fullHash = await sha256(input);
+            return fullHash.slice(0, 16); // Return first 16 characters of the hash
+        }
+
+        // Update the initializePeer function
+        async function initializePeer() {
             const urlParams = new URLSearchParams(window.location.search);
             const initiatorWord = urlParams.get('i');
             const receiverWord = urlParams.get('r');
 
             if (initiatorWord) {
-                customPeerId = createHash(initiatorWord);
+                customPeerId = await createHash(initiatorWord);
                 isInitiator = true;
                 document.getElementById('customPeerId').value = initiatorWord;
             } else if (receiverWord) {
@@ -538,13 +543,15 @@ This specification outlines the core functionality and design of the chat applic
             }, duration);
         }
 
-        function connectToPeer(peerId) {
+        // Update the connectToPeer function
+        async function connectToPeer(peerId) {
             log(`Connecting to peer: ${peerId}`);
             if (conn) {
                 conn.close();
             }
             // Use the hash of the peerId for the actual connection
-            conn = peer.connect(createHash(peerId), { reliable: true });
+            const hashedPeerId = await createHash(peerId);
+            conn = peer.connect(hashedPeerId, { reliable: true });
             setupConnection();
             
             // Enhanced retry mechanism
@@ -556,7 +563,7 @@ This specification outlines the core functionality and design of the chat applic
                 if (retryCount < maxRetries) {
                     retryCount++;
                     log(`Retry attempt ${retryCount}`);
-                    conn = peer.connect(createHash(peerId), { reliable: true });
+                    conn = peer.connect(hashedPeerId, { reliable: true });
                     setupConnection();
                     setTimeout(() => {
                         if (!conn.open) {
