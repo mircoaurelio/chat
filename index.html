@@ -386,6 +386,7 @@ This specification outlines the core functionality and design of the chat applic
             } else if (receiverWord) {
                 isInitiator = false;
                 document.getElementById('sharewordInput').value = receiverWord;
+                // Don't connect here, wait for handleSharewordChange to be called
             }
 
             peer = customPeerId ? new Peer(customPeerId) : new Peer();
@@ -401,7 +402,7 @@ This specification outlines the core functionality and design of the chat applic
                 setTimeout(() => {
                     if (receiverWord) {
                         log('Connecting to initiator');
-                        connectToPeer(receiverWord);
+                        handleSharewordChange(); // This will hash and connect
                     } else {
                         log('New chat as initiator');
                         document.getElementById('loadingMessage').textContent = 'Share your link to start.';
@@ -555,8 +556,6 @@ This specification outlines the core functionality and design of the chat applic
             // Reset the flag when starting a new connection
             initialConnectionMessageShown = false;
             
-            // The peerId is already hashed at this point
-            const hashedPeerId = peerId;
             console.log('Connecting with hashed PeerID:', hashedPeerId);
             conn = peer.connect(hashedPeerId, { reliable: true });
             setupConnection();
@@ -1011,6 +1010,9 @@ This specification outlines the core functionality and design of the chat applic
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => sendTypingStatus(false), TYPING_TIMER_LENGTH);
         });
+
+        // Make sure this event listener is in place
+        document.getElementById('sharewordInput').addEventListener('change', handleSharewordChange);
     </script>
  
 </body>
