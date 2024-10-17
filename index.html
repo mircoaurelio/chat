@@ -380,6 +380,7 @@ This specification outlines the core functionality and design of the chat applic
 
             if (initiatorWord) {
                 customPeerId = await createHash(initiatorWord);
+                console.log('Initiator hashed PeerID:', customPeerId);
                 isInitiator = true;
                 document.getElementById('customPeerId').value = initiatorWord;
             } else if (receiverWord) {
@@ -554,8 +555,9 @@ This specification outlines the core functionality and design of the chat applic
             // Reset the flag when starting a new connection
             initialConnectionMessageShown = false;
             
-            // Use the hash of the peerId for the actual connection
-            const hashedPeerId = await createHash(peerId);
+            // The peerId is already hashed at this point
+            const hashedPeerId = peerId;
+            console.log('Connecting with hashed PeerID:', hashedPeerId);
             conn = peer.connect(hashedPeerId, { reliable: true });
             setupConnection();
             
@@ -872,18 +874,21 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         // Add this function to handle shareword input changes
-        function handleSharewordChange() {
+        async function handleSharewordChange() {
             const sharewordInput = document.getElementById('sharewordInput');
             const shareword = sharewordInput.value.trim();
             
             if (shareword) {
-                // Use the shareword directly in the URL, not the hash
+                const hashedShareword = await createHash(shareword);
+                console.log('Hashed shareword:', hashedShareword);
+                
+                // Use the original shareword in the URL
                 const newUrl = `${window.location.origin}${window.location.pathname}?r=${shareword}`;
                 window.history.pushState({}, '', newUrl);
                 setupCopyLinkButton(shareword);
                 
-                // Attempt to connect using the shareword
-                connectToPeer(shareword);
+                // Attempt to connect using the hashed shareword
+                connectToPeer(hashedShareword);
             }
         }
 
