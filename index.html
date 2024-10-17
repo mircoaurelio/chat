@@ -280,7 +280,7 @@ This specification outlines the core functionality and design of the chat applic
         <h2>P2P Chat</h2>
         <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
         
-         
+        <p id="loadingMessage">...</p>
         <div class="input-group mb-3">
             <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
             <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
@@ -354,47 +354,39 @@ This specification outlines the core functionality and design of the chat applic
         let customPeerId = '';
         let typingTimer;
         const TYPING_TIMER_LENGTH = 3000; // 3 seconds
-        let initialConnectionMessageShown = false;
 
         // Add the call event listener here, outside of any other function
       
-        function sha256(input) {
-            const utf8 = new TextEncoder().encode(input);
-            return crypto.subtle.digest('SHA-256', utf8).then(hashBuffer => {
-                const hashArray = Array.from(new Uint8Array(hashBuffer));
-                const hashHex = hashArray.map(byte => byte.toString(16).padStart(2, '0')).join('');
-                return hashHex;
-            });
+        // Add this function to create a hash from a string
+        function createHash(input) {
+            let hash = 0;
+            for (let i = 0; i < input.length; i++) {
+                const char = input.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash; // Convert to 32-bit integer
+            }
+            return Math.abs(hash).toString(36); // Convert to base 36 and ensure it's positive
         }
 
-        async function createHash(input) {
-            const fullHash = await sha256(input);
-            return fullHash.slice(0, 46); // Return first 46 characters of the hash
-        }
-
-        // Update the initializePeer function
-        async function initializePeer() {
+        function initializePeer() {
             const urlParams = new URLSearchParams(window.location.search);
             const initiatorWord = urlParams.get('i');
             const receiverWord = urlParams.get('r');
 
             if (initiatorWord) {
-                customPeerId = await createHash(initiatorWord);
-                console.log('Initiator hashed PeerID:', customPeerId);
+                customPeerId = createHash(initiatorWord);
                 isInitiator = true;
                 document.getElementById('customPeerId').value = initiatorWord;
             } else if (receiverWord) {
                 isInitiator = false;
                 document.getElementById('sharewordInput').value = receiverWord;
-                // Don't connect here, wait for handleSharewordChange to be called
             }
 
             peer = customPeerId ? new Peer(customPeerId) : new Peer();
             
             peer.on('open', (id) => {
                 myPeerId = id;
-                // Update this line to display the shared word instead of the PeerJS ID
-                document.getElementById('myId').textContent = initiatorWord || receiverWord || id;
+                document.getElementById('myId').textContent = id;
                 
                 log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
 
@@ -402,10 +394,10 @@ This specification outlines the core functionality and design of the chat applic
                 setTimeout(() => {
                     if (receiverWord) {
                         log('Connecting to initiator');
-                        handleSharewordChange(); // This will hash and connect
+                        connectToPeer(createHash(receiverWord));
                     } else {
                         log('New chat as initiator');
-                        document.getElementById('loadingMessage').textContent = 'Share your link to start.';
+                        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
                         document.getElementById('copyLinkBtn').style.display = 'inline-block';
                         setupCopyLinkButton(initiatorWord || id);
                     }
@@ -472,7 +464,6 @@ This specification outlines the core functionality and design of the chat applic
 
             copyLinkBtn.addEventListener('click', () => {
                 const shareWord = sharewordInput.value.trim() || customPeerId || id;
-                // Use the shareWord directly in the URL, not the hash
                 const shareLink = `${window.location.origin}${window.location.pathname}?r=${shareWord}`;
 
                 navigator.clipboard.writeText(shareLink).then(() => {
@@ -547,17 +538,12 @@ This specification outlines the core functionality and design of the chat applic
             }, duration);
         }
 
-        // Update the connectToPeer function
-        async function connectToPeer(peerId) {
+        function connectToPeer(peerId) {
             log(`Connecting to peer: ${peerId}`);
             if (conn) {
                 conn.close();
             }
-            // Reset the flag when starting a new connection
-            initialConnectionMessageShown = false;
-            
-            console.log('Connecting with hashed PeerID:', hashedPeerId);
-            conn = peer.connect(hashedPeerId, { reliable: true });
+            conn = peer.connect(peerId, { reliable: true });
             setupConnection();
             
             // Enhanced retry mechanism
@@ -569,7 +555,7 @@ This specification outlines the core functionality and design of the chat applic
                 if (retryCount < maxRetries) {
                     retryCount++;
                     log(`Retry attempt ${retryCount}`);
-                    conn = peer.connect(hashedPeerId, { reliable: true });
+                    conn = peer.connect(peerId, { reliable: true });
                     setupConnection();
                     setTimeout(() => {
                         if (!conn.open) {
@@ -598,12 +584,10 @@ This specification outlines the core functionality and design of the chat applic
             
             conn.on('open', () => {
                 log('Connected to peer');
-                if (!initialConnectionMessageShown) {
+                // Only display the connection message if it hasn't been displayed yet
+                if (!document.getElementById('chatInterface').style.display || document.getElementById('chatInterface').style.display === 'none') {
                     displayMessage('Connected to peer', 'system');
                     showChatInterface();
-                    initialConnectionMessageShown = true;
-                } else {
-                    displayMessage('Your friend has reconnected', 'system');
                 }
             });
             
@@ -638,10 +622,10 @@ This specification outlines the core functionality and design of the chat applic
                 
                 // Check if the disconnected peer was the initiator
                 if (!isInitiator) {
-                    displayMessage('The chat initiator has disconnected. The page will reload in seconds.', 'system');
+                    displayMessage('The chat initiator has disconnected. The page will reload in 5 seconds.', 'system');
                     setTimeout(() => {
                         window.location.reload();
-                    }, 2000);
+                    }, 5000);
                 }
             });
 
@@ -873,21 +857,17 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         // Add this function to handle shareword input changes
-        async function handleSharewordChange() {
+        function handleSharewordChange() {
             const sharewordInput = document.getElementById('sharewordInput');
             const shareword = sharewordInput.value.trim();
             
             if (shareword) {
-                const hashedShareword = await createHash(shareword);
-                console.log('Hashed shareword:', hashedShareword);
-                
-                // Use the original shareword in the URL
                 const newUrl = `${window.location.origin}${window.location.pathname}?r=${shareword}`;
                 window.history.pushState({}, '', newUrl);
                 setupCopyLinkButton(shareword);
                 
-                // Attempt to connect using the hashed shareword
-                connectToPeer(hashedShareword);
+                // Attempt to connect using the hash of the shareword
+                connectToPeer(createHash(shareword));
             }
         }
 
@@ -1010,9 +990,6 @@ This specification outlines the core functionality and design of the chat applic
             clearTimeout(typingTimer);
             typingTimer = setTimeout(() => sendTypingStatus(false), TYPING_TIMER_LENGTH);
         });
-
-        // Make sure this event listener is in place
-        document.getElementById('sharewordInput').addEventListener('change', handleSharewordChange);
     </script>
  
 </body>
