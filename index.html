@@ -280,7 +280,7 @@ This specification outlines the core functionality and design of the chat applic
         <h2>P2P Chat</h2>
         <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
         
-        <p id="loadingMessage">...</p>
+         
         <div class="input-group mb-3">
             <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
             <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
@@ -378,15 +378,19 @@ This specification outlines the core functionality and design of the chat applic
             const receiverWord = urlParams.get('r');
 
             if (initiatorWord) {
+                // This is now the joining user (initiator)
                 customPeerId = await createHash(initiatorWord);
                 isInitiator = true;
                 document.getElementById('customPeerId').value = initiatorWord;
-            } else if (receiverWord) {
+            } else {
+                // This is now the chat creator (receiver)
                 isInitiator = false;
-                document.getElementById('sharewordInput').value = receiverWord;
+                const generatedWord = generateRandomId();
+                document.getElementById('sharewordInput').value = generatedWord;
+                customPeerId = await createHash(generatedWord);
             }
 
-            peer = customPeerId ? new Peer(customPeerId) : new Peer();
+            peer = new Peer(customPeerId);
             
             peer.on('open', (id) => {
                 myPeerId = id;
@@ -394,18 +398,17 @@ This specification outlines the core functionality and design of the chat applic
                 
                 log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
 
-                // Delay the connection attempt to ensure PeerJS is fully initialized
                 setTimeout(() => {
-                    if (receiverWord) {
-                        log('Connecting to initiator');
-                        connectToPeer(receiverWord);
+                    if (isInitiator) {
+                        log('Connecting to receiver');
+                        connectToPeer(initiatorWord);
                     } else {
-                        log('New chat as initiator');
-                        document.getElementById('loadingMessage').textContent = 'Ready to chat! Share your link to start.';
+                        log('New chat as receiver');
+                        document.getElementById('loadingMessage').textContent = 'Share your link to start.';
                         document.getElementById('copyLinkBtn').style.display = 'inline-block';
-                        setupCopyLinkButton(initiatorWord || id);
+                        setupCopyLinkButton(generatedWord || id);
                     }
-                }, 1000); // 1 second delay
+                }, 1000);
 
                 // Replace setInterval with a more battery-friendly approach
                 let lastCheckTime = Date.now();
@@ -425,10 +428,10 @@ This specification outlines the core functionality and design of the chat applic
                 setupConnection();
                 showChatInterface();
                 
-                if (isInitiator && !chatId) {
+                if (!isInitiator && !chatId) {
                     chatId = generateChatId();
                     updateUrlWithChatIdAndPeerId(chatId, myPeerId);
-                    conn.send({ type: 'chatId', chatId: chatId, initiatorId: myPeerId });
+                    conn.send({ type: 'chatId', chatId: chatId, receiverId: myPeerId });
                 }
                 
                 log('Your friend has joined the chat!');
@@ -467,9 +470,9 @@ This specification outlines the core functionality and design of the chat applic
             const sharewordInput = document.getElementById('sharewordInput');
 
             copyLinkBtn.addEventListener('click', () => {
-                const shareWord = sharewordInput.value.trim() || customPeerId || id;
-                // Use the shareWord directly in the URL, not the hash
-                const shareLink = `${window.location.origin}${window.location.pathname}?r=${shareWord}`;
+                const shareWord = sharewordInput.value.trim() || id;
+                // Use 'i' parameter for the initiator (joining user)
+                const shareLink = `${window.location.origin}${window.location.pathname}?i=${shareWord}`;
 
                 navigator.clipboard.writeText(shareLink).then(() => {
                     copyStatus.textContent = 'Link copied to clipboard!';
@@ -549,15 +552,14 @@ This specification outlines the core functionality and design of the chat applic
             if (conn) {
                 conn.close();
             }
-            // Use the hash of the peerId for the actual connection
             const hashedPeerId = await createHash(peerId);
             conn = peer.connect(hashedPeerId, { reliable: true });
             setupConnection();
             
             // Enhanced retry mechanism
             let retryCount = 0;
-            const maxRetries = 100; // Increased number of retries
-            const retryInterval = 1000; // Reduced interval to 1 second
+            const maxRetries = 100;
+            const retryInterval = 1000;
 
             function retryConnection() {
                 if (retryCount < maxRetries) {
@@ -576,7 +578,6 @@ This specification outlines the core functionality and design of the chat applic
                 }
             }
 
-            // Start the retry process if the initial connection fails
             setTimeout(() => {
                 if (!conn.open) {
                     retryConnection();
