@@ -367,7 +367,8 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         async function createHash(input) {
-            return await sha256(input); // Return the full hash
+            const fullHash = await sha256(input);
+            return fullHash.slice(0, 46); // Return first 46 characters of the hash
         }
 
         // Update the initializePeer function
@@ -467,7 +468,7 @@ This specification outlines the core functionality and design of the chat applic
 
             copyLinkBtn.addEventListener('click', () => {
                 const shareWord = sharewordInput.value.trim() || customPeerId || id;
-                // Use the shareWord directly in the URL
+                // Use the shareWord directly in the URL, not the hash
                 const shareLink = `${window.location.origin}${window.location.pathname}?r=${shareWord}`;
 
                 navigator.clipboard.writeText(shareLink).then(() => {
@@ -543,13 +544,13 @@ This specification outlines the core functionality and design of the chat applic
         }
 
         // Update the connectToPeer function
-        async function connectToPeer(shareWord) {
-            log(`Connecting to peer with shared word: ${shareWord}`);
+        async function connectToPeer(peerId) {
+            log(`Connecting to peer: ${peerId}`);
             if (conn) {
                 conn.close();
             }
-            // Use the hash of the shareWord for the actual connection
-            const hashedPeerId = await createHash(shareWord);
+            // Use the hash of the peerId for the actual connection
+            const hashedPeerId = await createHash(peerId);
             conn = peer.connect(hashedPeerId, { reliable: true });
             setupConnection();
             
@@ -869,7 +870,7 @@ This specification outlines the core functionality and design of the chat applic
             const shareword = sharewordInput.value.trim();
             
             if (shareword) {
-                // Use the shareword directly in the URL
+                // Use the shareword directly in the URL, not the hash
                 const newUrl = `${window.location.origin}${window.location.pathname}?r=${shareword}`;
                 window.history.pushState({}, '', newUrl);
                 setupCopyLinkButton(shareword);
