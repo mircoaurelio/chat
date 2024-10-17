@@ -390,7 +390,8 @@ This specification outlines the core functionality and design of the chat applic
             
             peer.on('open', (id) => {
                 myPeerId = id;
-                document.getElementById('myId').textContent = id;
+                // Update this line to display the shared word instead of the PeerJS ID
+                document.getElementById('myId').textContent = initiatorWord || receiverWord || id;
                 
                 log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
 
