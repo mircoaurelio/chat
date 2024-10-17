@@ -256,7 +256,9 @@ This specification outlines the core functionality and design of the chat applic
         .typing-indicator span:nth-child(3) {
             animation: blink 1s infinite 0.9999s;
         }
-
+        #myid{
+            font-size: 5px;
+        }
         @keyframes blink {
             50% {
                 opacity: 1;
@@ -281,7 +283,7 @@ This specification outlines the core functionality and design of the chat applic
         <h2>P2P Chat</h2>
         <button id="reconnectBtn" class="btn btn-warning btn-sm" style="display: none;">Reconnect</button>
         
-        <p id="loadingMessage">...</p>
+        <p style="display:none" id="loadingMessage">...</p>
         <div class="input-group mb-3">
             <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
             <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
@@ -295,7 +297,7 @@ This specification outlines the core functionality and design of the chat applic
     <div id="chatInterface" style="display: none; height: 100%;">
         <div class="chat-container">
             <div class="chat-header">
-                <h5 class="mb-0">P2P Chat</h5>
+                <h5 class="mb-0">PeerChat</h5>
                 <small><span id="myId"></span></small>
             </div>
             <div id="chatArea">
@@ -309,8 +311,8 @@ This specification outlines the core functionality and design of the chat applic
                 <div class="input-group">
                     <button id="photoinput" class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">📷</button>
                     <button id="startCallBtn" class="btn btn-success">📞</button>
-                    <input type="text" id="messageInput" class="form-control text-imput" placeholder="Type a message">
-                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    <input style="width: 100%;" type="text" id="messageInput" class="form-control text-imput" placeholder="Type a message">
+                    <input style="width: 100%;" wtype="file" id="fileInput" accept="image/*" style="display: none;">
                  
                     <button class="btn btn-primary btn-round send-message-btn" onclick="sendMessage()">Send</button>
                 </div>
@@ -1006,7 +1008,7 @@ This specification outlines the core functionality and design of the chat applic
                 if (!chatOpen) {
                     window.location.reload();
                 }
-            }, 5000);
+            }, 9000);
         }
 
         function stopReloadInterval() {
