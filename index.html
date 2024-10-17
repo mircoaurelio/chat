@@ -597,6 +597,9 @@ This specification outlines the core functionality and design of the chat applic
                 if (!document.getElementById('chatInterface').style.display || document.getElementById('chatInterface').style.display === 'none') {
                     displayMessage('Connected to peer', 'system');
                     showChatInterface();
+                } else {
+                    // This is a reconnection
+                    displayMessage('Your friend has reconnected', 'system');
                 }
             });
             
