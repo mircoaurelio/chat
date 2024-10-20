@@ -75,7 +75,7 @@ This specification outlines the core functionality and design of the chat applic
             background-color: orange;
         }
         .chat-header {
-            background-color: #075e54;
+            background-color: #2f3b39;
             color: white;
             padding: 10px 15px;
         }
@@ -309,11 +309,10 @@ This specification outlines the core functionality and design of the chat applic
             </div>
             <div class="message-input">
                 <div class="input-group">
-                    <button id="photoinput" class="btn btn-secondary" onclick="document.getElementById('fileInput').click()">📷</button>
+                    <button id="photoinput" class="btn btn-secondary">📷</button>
                     <button id="startCallBtn" class="btn btn-success">📞</button>
-                    <input style="width: 100%;" type="text" id="messageInput" class="form-control text-imput" placeholder="Type a message">
-                    <input style="width: 100%;" wtype="file" id="fileInput" accept="image/*" style="display: none;">
-                 
+                    <input type="text" id="messageInput" class="form-control text-imput" placeholder="Type a message">
+                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
                     <button class="btn btn-primary btn-round send-message-btn" onclick="sendMessage()">Send</button>
                 </div>
             </div>
@@ -733,7 +732,7 @@ This specification outlines the core functionality and design of the chat applic
             }
         });
 
-        // Add this function to handle file selection
+        // Update the handleFileSelect function
         function handleFileSelect(event) {
             const file = event.target.files[0];
             if (file && file.type.startsWith('image/')) {
@@ -741,8 +740,9 @@ This specification outlines the core functionality and design of the chat applic
                 reader.onload = function(e) {
                     const imageData = e.target.result;
                     if (conn && conn.open) {
-                        conn.send({ type: 'image', content: imageData });
-                        displayMessage({ type: 'image', content: imageData }, 'you');
+                        const messageId = Date.now().toString();
+                        conn.send({ type: 'image', content: imageData, id: messageId });
+                        displayMessage({ type: 'image', content: imageData, id: messageId }, 'you');
                         playSound('send');
                     }
                 };
@@ -750,8 +750,16 @@ This specification outlines the core functionality and design of the chat applic
             }
         }
 
-        // Add event listener for file input
-        document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+        // Add this function to trigger file input click
+        function triggerFileInput() {
+            document.getElementById('fileInput').click();
+        }
+
+        // Add event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+            document.getElementById('photoinput').addEventListener('click', triggerFileInput);
+        });
 
         // Add this function to start a video call
         async function startVideoCall() {
