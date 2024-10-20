@@ -325,7 +325,7 @@ This specification outlines the core functionality and design of the chat applic
         <div class="input-group mb-3">
             <input type="text" id="customPeerId" class="form-control" placeholder="Enter custom ID (optional)">
             <input type="text" id="sharewordInput" class="form-control" placeholder="Enter shareword to join">
-            <button id="copyLinkBtn" class="btn btn-success btn-round">Copy Chat Link</button>
+            <button id="copyLinkBtn" class="btn btn-success">Copy Chat Link</button>
         </div>
         <p id="copyStatus" class="mt-2"></p>
         <div id="logArea" style="text-align: left; max-height: 200px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-top: 20px;">
@@ -336,7 +336,7 @@ This specification outlines the core functionality and design of the chat applic
         <div class="chat-container">
             <div class="chat-header">
                 <h5 class="mb-0">PeerChat</h5>
-                <small><span id=myid"></span></small>
+                <small><span id="myid"></span></small>
             </div>
             <div id="chatArea">
                 <div class="typing-indicator">
@@ -511,10 +511,9 @@ This specification outlines the core functionality and design of the chat applic
             const copyLinkBtn = document.getElementById('copyLinkBtn');
             const copyStatus = document.getElementById('copyStatus');
             const sharewordInput = document.getElementById('sharewordInput');
-            const customPeerIdInput = document.getElementById('customPeerId');
 
             copyLinkBtn.addEventListener('click', () => {
-                let shareWord = sharewordInput.value.trim() || customPeerIdInput.value.trim() || id;
+                const shareWord = sharewordInput.value.trim() || customPeerId || id;
                 const shareLink = `${window.location.origin}${window.location.pathname}?r=${shareWord}`;
 
                 navigator.clipboard.writeText(shareLink).then(() => {
