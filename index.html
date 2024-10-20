@@ -83,7 +83,7 @@ This specification outlines the core functionality and design of the chat applic
             flex-grow: 1;
             overflow-y: auto;
             padding: 15px;
-            background-color: #e5ddd5;
+            background-color: #d6d6d6;
         }
         .message {
             max-width: 80%;
@@ -257,7 +257,7 @@ This specification outlines the core functionality and design of the chat applic
             animation: blink 1s infinite 0.9999s;
         }
         #myid{
-            font-size: 5px;
+            font-size: 12px;
         }
         @keyframes blink {
             50% {
@@ -269,12 +269,50 @@ This specification outlines the core functionality and design of the chat applic
             content: '\2713\2713';
             font-size: 0.8em;
             margin-left: 5px;
-            color: #999; /* Light gray for unread messages */
-            opacity: 1; /* Make checks always visible */
+            color: #999; 
+            opacity: 1;  
+            letter-spacing: -3px;
         }
 
         .message.you.read::after {
             color: #34B7F1; /* Blue for read messages */
+        }
+
+        .btn-round {
+            border-radius: 50%;
+            padding: 0.375rem;
+            line-height: 1;
+        }
+
+        .photo-btn {
+            background-color: #f8f9fa;
+            border: 1px solid #ced4da;
+            color: #495057;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .photo-btn:hover, .photo-btn:focus {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+            color: #212529;
+        }
+
+        .photo-btn svg {
+            vertical-align: middle;
+        }
+
+        /* Adjust the input group to align items properly */
+        .message-input .input-group {
+            align-items: center;
+        }
+
+        /* Add some spacing between buttons */
+        .message-input .input-group > * {
+            margin-right: 0.5rem;
+        }
+
+        .message-input .input-group > *:last-child {
+            margin-right: 0;
         }
     </style>
 </head>
@@ -298,7 +336,7 @@ This specification outlines the core functionality and design of the chat applic
         <div class="chat-container">
             <div class="chat-header">
                 <h5 class="mb-0">PeerChat</h5>
-                <small><span id="myId"></span></small>
+                <small><span id=myid"></span></small>
             </div>
             <div id="chatArea">
                 <div class="typing-indicator">
@@ -309,7 +347,12 @@ This specification outlines the core functionality and design of the chat applic
             </div>
             <div class="message-input">
                 <div class="input-group">
-                    <button id="photoinput" class="btn btn-secondary">📷</button>
+                    <button id="photoinput" class="btn btn-light btn-round photo-btn" aria-label="Send photo">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-camera" viewBox="0 0 16 16">
+                            <path d="M15 12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h1.172a3 3 0 0 0 2.12-.879l.83-.828A1 1 0 0 1 6.827 3h2.344a1 1 0 0 1 .707.293l.828.828A3 3 0 0 0 12.828 5H14a1 1 0 0 1 1 1v6zM2 4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-1.172a2 2 0 0 1-1.414-.586l-.828-.828A2 2 0 0 0 9.172 2H6.828a2 2 0 0 0-1.414.586l-.828.828A2 2 0 0 1 3.172 4H2z"/>
+                            <path d="M8 11a2.5 2.5 0 1 1 0-5 2.5 2.5 0 0 1 0 5zm0 1a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM3 6.5a.5.5 0 1 1-1 0 .5.5 0 0 1 1 0z"/>
+                        </svg>
+                    </button>
                     <button id="startCallBtn" class="btn btn-success">📞</button>
                     <input type="text" id="messageInput" class="form-control text-imput" placeholder="Type a message">
                     <input type="file" id="fileInput" accept="image/*" style="display: none;">
@@ -390,7 +433,7 @@ This specification outlines the core functionality and design of the chat applic
             
             peer.on('open', async (id) => {
                 myPeerId = id;
-                document.getElementById('myId').textContent = id;
+                document.getElementById('myid').textContent = id;
                 
                 log(`Peer opened. My ID: ${id}, Is Initiator: ${isInitiator}`);
 
@@ -468,9 +511,10 @@ This specification outlines the core functionality and design of the chat applic
             const copyLinkBtn = document.getElementById('copyLinkBtn');
             const copyStatus = document.getElementById('copyStatus');
             const sharewordInput = document.getElementById('sharewordInput');
+            const customPeerIdInput = document.getElementById('customPeerId');
 
             copyLinkBtn.addEventListener('click', () => {
-                const shareWord = sharewordInput.value.trim() || customPeerId || id;
+                let shareWord = sharewordInput.value.trim() || customPeerIdInput.value.trim() || id;
                 const shareLink = `${window.location.origin}${window.location.pathname}?r=${shareWord}`;
 
                 navigator.clipboard.writeText(shareLink).then(() => {
